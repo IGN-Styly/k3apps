@@ -133,6 +133,7 @@ mapfile -t ordered_target_packages < <(printf '%s\n' "${!target_packages[@]}" | 
 
 tsort_input="$(mktemp)"
 trap 'rm -f "$tsort_input"' EXIT
+synthetic_root="__k3apps_root__"
 
 for pkgbase in "${ordered_target_packages[@]}"; do
   dep_count=0
@@ -145,11 +146,10 @@ for pkgbase in "${ordered_target_packages[@]}"; do
   done
 
   if (( dep_count == 0 )); then
-    printf '%s\n' "$pkgbase" >> "$tsort_input"
+    printf '%s %s\n' "$synthetic_root" "$pkgbase" >> "$tsort_input"
   fi
 done
 
-if ! tsort "$tsort_input"; then
+if ! tsort "$tsort_input" | awk -v synthetic_root="$synthetic_root" '$0 != synthetic_root'; then
   die "cyclic internal package dependency detected"
 fi
-

@@ -103,6 +103,7 @@ jobs:
             git -C "$GITHUB_WORKSPACE/.pages" clean -fdx
           fi
 
+          git config --global --add safe.directory "$GITHUB_WORKSPACE/.pages"
           git -C "$GITHUB_WORKSPACE/.pages" config user.name "github-actions[bot]"
           git -C "$GITHUB_WORKSPACE/.pages" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
@@ -127,7 +128,8 @@ jobs:
 
       - name: Push gh-pages updates
         run: |
-          if [[ -n "$(git -C "$GITHUB_WORKSPACE/.pages" status --short)" ]]; then
+          status_output="$(git -C "$GITHUB_WORKSPACE/.pages" status --short)"
+          if [[ -n "$status_output" ]]; then
             git -C "$GITHUB_WORKSPACE/.pages" add .
             git -C "$GITHUB_WORKSPACE/.pages" commit -m "Publish site and repo for ${GITHUB_SHA}"
             git -C "$GITHUB_WORKSPACE/.pages" push origin gh-pages
