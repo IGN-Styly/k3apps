@@ -9,6 +9,10 @@ repo_name="k3apps"
 arch="x86_64"
 clean_publish=0
 
+package_name_from_file() {
+  bsdtar -xOf "$1" .PKGINFO | awk -F ' = ' '$1 == "pkgname" { print $2; exit }'
+}
+
 detach_sign() {
   local file_path=$1
   local key_id=${ARCH_REPO_GPG_KEY_ID:-}
@@ -71,12 +75,12 @@ fi
 mapfile -t built_pkgfiles < <(find "$artifacts_dir" -maxdepth 1 -type f -name '*.pkg.tar.*' ! -name '*.sig' | sort)
 
 for pkgfile in "${built_pkgfiles[@]}"; do
-  pkgname="$(pacman -Qp --qf '%n' "$pkgfile")"
+  pkgname="$(package_name_from_file "$pkgfile")"
 
   while IFS= read -r existing_pkg; do
     [[ -n "$existing_pkg" ]] || continue
 
-    if [[ "$(pacman -Qp --qf '%n' "$existing_pkg")" == "$pkgname" ]]; then
+    if [[ "$(package_name_from_file "$existing_pkg")" == "$pkgname" ]]; then
       rm -f "$existing_pkg" "$existing_pkg.sig"
     fi
   done < <(find "$arch_dir" -maxdepth 1 -type f -name '*.pkg.tar.*' ! -name '*.sig' | sort)
