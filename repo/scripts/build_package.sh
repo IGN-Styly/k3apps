@@ -56,7 +56,13 @@ export SRCPKGDEST="$build_root/pkg"
 export SRCDEST="$build_root/src"
 
 if [[ -n "$pacman_conf" ]]; then
-  export PACMAN="pacman --config $pacman_conf"
+  pacman_wrapper="$build_root/pacman-wrapper.sh"
+  cat > "$pacman_wrapper" <<EOF
+#!/usr/bin/env bash
+exec pacman --config "$pacman_conf" "\$@"
+EOF
+  chmod +x "$pacman_wrapper"
+  export PACMAN="$pacman_wrapper"
 fi
 
 command=(makepkg --syncdeps --cleanbuild --clean --noconfirm --config "$makepkg_conf")
@@ -69,4 +75,3 @@ fi
   cd "$pkg_dir"
   "${command[@]}"
 )
-
