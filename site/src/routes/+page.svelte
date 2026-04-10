@@ -66,7 +66,7 @@
 			<div class="space-y-3">
 				<p class="mono-label">Static Package Index</p>
 				<h1 class="text-5xl font-semibold uppercase tracking-[-0.1em] md:text-7xl">k3apps</h1>
-				<p class="max-w-2xl text-sm leading-relaxed text-white/78 md:text-base">
+				<p class="max-w-2xl text-sm leading-relaxed text-foreground/78 md:text-base">
 					Search the packages published from this repository. The interface is static, the
 					results are client-side, and the pacman repo stays under <code>x86_64/</code>.
 				</p>
@@ -88,7 +88,7 @@
 			</div>
 		</div>
 
-		<div class="border-2 border-white bg-black/80 p-3">
+		<div class="border-2 border-border bg-background/80 p-3">
 			<div class="flex flex-col gap-3 md:flex-row">
 				<Input
 					bind:value={query}
@@ -96,13 +96,13 @@
 					placeholder={packages.length > 0
 						? 'Search pkgbase, pkgname, description, dependency'
 						: 'No packages indexed yet'}
-					class="h-12 border-2 border-white bg-black px-4 text-base text-white placeholder:text-white/36 focus-visible:border-white focus-visible:ring-0"
+					class="h-12 border-2 border-border bg-background px-4 text-base text-foreground placeholder:text-foreground/36 focus-visible:border-foreground focus-visible:ring-0"
 				/>
 
 				{#if query}
 					<Button
 						variant="outline"
-						class="h-12 border-2 border-white bg-black px-4 font-semibold uppercase tracking-[0.22em] text-white shadow-none hover:bg-white hover:text-black focus-visible:ring-0"
+						class="h-12 border-2 border-border bg-background px-4 font-semibold uppercase tracking-[0.22em] text-foreground shadow-none hover:bg-foreground hover:text-background focus-visible:ring-0"
 						onclick={resetQuery}
 					>
 						Clear
@@ -121,7 +121,7 @@
 			<div class="result-box">
 				<p class="mono-label">Empty Repo</p>
 				<h2 class="mt-3 text-2xl font-semibold uppercase tracking-[-0.08em]">No Packages Yet</h2>
-				<p class="mt-3 max-w-2xl text-sm leading-relaxed text-white/78 md:text-base">
+				<p class="mt-3 max-w-2xl text-sm leading-relaxed text-foreground/78 md:text-base">
 					Add a package under <code>packages/&lt;pkgbase&gt;/</code>, generate its
 					<code>.SRCINFO</code>, and rebuild the site to have it indexed here.
 				</p>
@@ -130,7 +130,7 @@
 			<div class="result-box">
 				<p class="mono-label">No Match</p>
 				<h2 class="mt-3 text-2xl font-semibold uppercase tracking-[-0.08em]">Nothing Found</h2>
-				<p class="mt-3 max-w-2xl text-sm leading-relaxed text-white/78 md:text-base">
+				<p class="mt-3 max-w-2xl text-sm leading-relaxed text-foreground/78 md:text-base">
 					No indexed package matches <code>{query}</code>.
 				</p>
 			</div>
@@ -147,7 +147,7 @@
 							</div>
 
 							{#if pkg.pkgdesc}
-								<p class="max-w-3xl text-sm leading-relaxed text-white/78 md:text-base">
+								<p class="max-w-3xl text-sm leading-relaxed text-foreground/78 md:text-base">
 									{pkg.pkgdesc}
 								</p>
 							{/if}
@@ -163,29 +163,29 @@
 					<div class="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
 						<div class="meta-box">
 							<p class="mono-label">Pkgname</p>
-							<p class="mt-2 text-sm leading-relaxed text-white/84">{joinValues(pkg.pkgnames)}</p>
+							<p class="mt-2 text-sm leading-relaxed text-foreground/84">{joinValues(pkg.pkgnames)}</p>
 						</div>
 						<div class="meta-box">
 							<p class="mono-label">Depends</p>
-							<p class="mt-2 text-sm leading-relaxed text-white/84">{joinValues(pkg.depends)}</p>
+							<p class="mt-2 text-sm leading-relaxed text-foreground/84">{joinValues(pkg.depends)}</p>
 						</div>
 						<div class="meta-box">
 							<p class="mono-label">Make Depends</p>
-							<p class="mt-2 text-sm leading-relaxed text-white/84">
+							<p class="mt-2 text-sm leading-relaxed text-foreground/84">
 								{joinValues(pkg.makedepends)}
 							</p>
 						</div>
 						<div class="meta-box">
 							<p class="mono-label">Path</p>
-							<p class="mt-2 text-sm leading-relaxed text-white/84">{pkg.packagePath}</p>
+							<p class="mt-2 text-sm leading-relaxed text-foreground/84">{pkg.packagePath}</p>
 						</div>
 					</div>
 
 					{#if pkg.url || pkg.sourceUrl}
-						<div class="mt-4 flex flex-wrap gap-3 text-sm text-white/78">
+						<div class="mt-4 flex flex-wrap gap-3 text-sm text-foreground/78">
 							{#if pkg.url}
 								<a
-									class="border border-white px-3 py-2 underline-offset-4 transition-colors hover:bg-white hover:text-black"
+									class="border border-border px-3 py-2 underline-offset-4 transition-colors hover:bg-foreground hover:text-background"
 									href={pkg.url}
 									rel="noreferrer"
 									target="_blank"
@@ -196,7 +196,7 @@
 
 							{#if pkg.sourceUrl}
 								<a
-									class="border border-white px-3 py-2 underline-offset-4 transition-colors hover:bg-white hover:text-black"
+									class="border border-border px-3 py-2 underline-offset-4 transition-colors hover:bg-foreground hover:text-background"
 									href={pkg.sourceUrl}
 									rel="noreferrer"
 									target="_blank"
