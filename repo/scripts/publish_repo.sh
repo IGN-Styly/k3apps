@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+source "$(dirname "$0")/common.sh"
+
+artifacts_dir="$(repo_root)/.artifacts/packages"
+pages_dir=""
+repo_name="k3apps"
+arch="x86_64"
+clean_publish=0
+
+detach_sign() {
+  local file_path=$1
+  local key_id=${ARCH_REPO_GPG_KEY_ID:-}
+  local passphrase=${ARCH_REPO_GPG_PASSPHRASE:-}
+  local sign_command
+
+  [[ -n "$key_id" ]] || die "ARCH_REPO_GPG_KEY_ID is not set"
+
+  sign_command=(gpg --batch --yes --local-user "$key_id")
+  if [[ -n "$passphrase" ]]; then
+    sign_command+=(--pinentry-mode loopback --passphrase "$passphrase")
+  fi
+
+  rm -f "$file_path.sig"
+  "${sign_command[@]}" --detach-sign "$file_path"
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --artifacts-dir)
+      artifacts_dir=${2:-}
+      shift 2
+      ;;
+    --pages-dir)
+      pages_dir=${2:-}
+      shift 2
+      ;;
+    --repo-name)
+      repo_name=${2:-}
+      shift 2
+      ;;
+    --arch)
+      arch=${2:-}
+      shift 2
+      ;;
+    --clean)
+      clean_publish=1
+      shift
+      ;;
+    *)
+      die "usage: publish_repo.sh --pages-dir <dir> [--artifacts-dir <dir>] [--repo-name <name>] [--arch <arch>] [--clean]"
+      ;;
+  esac
+done
+
+[[ -n "$pages_dir" ]] || die "--pages-dir is required"
+
+mkdir -p "$pages_dir/$arch"
+artifacts_dir="$(cd "$artifacts_dir" && pwd)"
+arch_dir="$(cd "$pages_dir/$arch" && pwd)"
+repo_db="$arch_dir/$repo_name.db.tar.zst"
+repo_files="$arch_dir/$repo_name.files.tar.zst"
+
+if (( clean_publish )); then
+  find "$arch_dir" -maxdepth 1 -type f \
+    \( -name '*.pkg.tar.*' -o -name '*.pkg.tar.*.sig' -o -name "$repo_name.db*" -o -name "$repo_name.files*" \) \
+    -delete
+fi
+
+mapfile -t built_pkgfiles < <(find "$artifacts_dir" -maxdepth 1 -type f -name '*.pkg.tar.*' ! -name '*.sig' | sort)
+
+for pkgfile in "${built_pkgfiles[@]}"; do
+  pkgname="$(pacman -Qp --qf '%n' "$pkgfile")"
+
+  while IFS= read -r existing_pkg; do
+    [[ -n "$existing_pkg" ]] || continue
+
+    if [[ "$(pacman -Qp --qf '%n' "$existing_pkg")" == "$pkgname" ]]; then
+      rm -f "$existing_pkg" "$existing_pkg.sig"
+    fi
+  done < <(find "$arch_dir" -maxdepth 1 -type f -name '*.pkg.tar.*' ! -name '*.sig' | sort)
+
+  if [[ -n "${ARCH_REPO_GPG_KEY_ID:-}" ]]; then
+    detach_sign "$pkgfile"
+  fi
+
+  cp -f "$pkgfile" "$arch_dir/"
+  if [[ -f "$pkgfile.sig" ]]; then
+    cp -f "$pkgfile.sig" "$arch_dir/"
+  fi
+done
+
+rm -f "$repo_db" "$repo_db.sig" "$arch_dir/$repo_name.db" "$arch_dir/$repo_name.db.sig"
+rm -f "$repo_files" "$repo_files.sig" "$arch_dir/$repo_name.files" "$arch_dir/$repo_name.files.sig"
+rm -f "$repo_db.old" "$repo_files.old"
+
+mapfile -t published_pkgfiles < <(find "$arch_dir" -maxdepth 1 -type f -name '*.pkg.tar.*' ! -name '*.sig' | sort)
+
+if (( ${#published_pkgfiles[@]} > 0 )); then
+  if [[ -n "${ARCH_REPO_GPG_KEY_ID:-}" ]]; then
+    if ! repo-add -s -k "${ARCH_REPO_GPG_KEY_ID}" "$repo_db" "${published_pkgfiles[@]}"; then
+      log "repo-add signing failed, retrying unsigned and signing database artifacts directly"
+      rm -f "$repo_db" "$repo_db.sig" "$repo_files" "$repo_files.sig"
+      repo-add "$repo_db" "${published_pkgfiles[@]}"
+      detach_sign "$repo_db"
+      detach_sign "$repo_files"
+    fi
+  else
+    repo-add "$repo_db" "${published_pkgfiles[@]}"
+  fi
+
+  sync_repo_aliases "$arch_dir" "$repo_name"
+  rm -f "$repo_db.old" "$repo_files.old"
+fi
+
+if [[ -n "${ARCH_REPO_GPG_KEY_ID:-}" ]] && gpg --batch --yes --list-keys "${ARCH_REPO_GPG_KEY_ID}" >/dev/null 2>&1; then
+  gpg --batch --yes --armor --export "${ARCH_REPO_GPG_KEY_ID}" > "$pages_dir/repo-signing-key.asc"
+elif (( clean_publish )); then
+  rm -f "$pages_dir/repo-signing-key.asc"
+fi

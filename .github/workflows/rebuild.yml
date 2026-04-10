@@ -1,0 +1,100 @@
+name: Rebuild
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+    defaults:
+      run:
+        shell: bash
+    env:
+      ARCH_REPO_GPG_PRIVATE_KEY: ${{ secrets.ARCH_REPO_GPG_PRIVATE_KEY }}
+      ARCH_REPO_GPG_PASSPHRASE: ${{ secrets.ARCH_REPO_GPG_PASSPHRASE }}
+      ARCH_REPO_GPG_KEY_ID: ${{ secrets.ARCH_REPO_GPG_KEY_ID }}
+      GNUPGHOME: ${{ github.workspace }}/.artifacts/gnupg
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install build dependencies
+        run: |
+          pacman -Sy --noconfirm archlinux-keyring
+          pacman -S --noconfirm --needed base-devel git gnupg pacman-contrib sudo
+
+      - name: Prepare builder user
+        run: |
+          useradd -m builder
+          install -d -m 0750 /etc/sudoers.d
+          printf 'builder ALL=(ALL) NOPASSWD: ALL\n' > /etc/sudoers.d/builder
+          chmod 0440 /etc/sudoers.d/builder
+          chown -R builder:builder "$GITHUB_WORKSPACE"
+
+      - name: Prepare gh-pages worktree
+        run: |
+          if git ls-remote --exit-code origin gh-pages >/dev/null 2>&1; then
+            git fetch origin gh-pages
+            git worktree add -B gh-pages "$GITHUB_WORKSPACE/.pages" origin/gh-pages
+          else
+            git worktree add --detach "$GITHUB_WORKSPACE/.pages" HEAD
+            git -C "$GITHUB_WORKSPACE/.pages" checkout --orphan gh-pages
+            git -C "$GITHUB_WORKSPACE/.pages" rm -rf . >/dev/null 2>&1 || true
+            git -C "$GITHUB_WORKSPACE/.pages" clean -fdx
+          fi
+
+          git -C "$GITHUB_WORKSPACE/.pages" config user.name "github-actions[bot]"
+          git -C "$GITHUB_WORKSPACE/.pages" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Rebuild all packages
+        run: |
+          su - builder -c "cd '$GITHUB_WORKSPACE' && ./repo/scripts/build_changed.sh \
+            --all \
+            --include-dependents \
+            --verify-srcinfo \
+            --output-dir '$GITHUB_WORKSPACE/.artifacts/packages'"
+
+      - name: Detect rebuilt artifacts
+        id: artifacts
+        run: |
+          mapfile -t pkgfiles < <(find "$GITHUB_WORKSPACE/.artifacts/packages" -maxdepth 1 -type f -name '*.pkg.tar.*' ! -name '*.sig' | sort)
+          if (( ${#pkgfiles[@]} > 0 )); then
+            echo "has_packages=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_packages=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check signing configuration
+        if: steps.artifacts.outputs.has_packages == 'true'
+        run: |
+          [[ -n "${ARCH_REPO_GPG_PRIVATE_KEY}" ]] || { echo "::error::ARCH_REPO_GPG_PRIVATE_KEY is not set"; exit 1; }
+          [[ -n "${ARCH_REPO_GPG_PASSPHRASE}" ]] || { echo "::error::ARCH_REPO_GPG_PASSPHRASE is not set"; exit 1; }
+          [[ -n "${ARCH_REPO_GPG_KEY_ID}" ]] || { echo "::error::ARCH_REPO_GPG_KEY_ID is not set"; exit 1; }
+
+      - name: Import signing key
+        if: steps.artifacts.outputs.has_packages == 'true'
+        run: ./repo/scripts/import_gpg_key.sh --export "$GITHUB_WORKSPACE/.artifacts/repo-signing-key.asc"
+
+      - name: Publish pacman repo
+        run: |
+          ./repo/scripts/publish_repo.sh \
+            --artifacts-dir "$GITHUB_WORKSPACE/.artifacts/packages" \
+            --pages-dir "$GITHUB_WORKSPACE/.pages" \
+            --repo-name k3apps \
+            --arch x86_64 \
+            --clean
+
+          if [[ -n "$(git -C "$GITHUB_WORKSPACE/.pages" status --short)" ]]; then
+            git -C "$GITHUB_WORKSPACE/.pages" add .
+            git -C "$GITHUB_WORKSPACE/.pages" commit -m "Rebuild repo for ${GITHUB_SHA}"
+            git -C "$GITHUB_WORKSPACE/.pages" push origin gh-pages
+          else
+            echo "No repo changes to publish."
+          fi

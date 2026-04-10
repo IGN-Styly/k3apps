@@ -1,0 +1,68 @@
+name: Validate
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches-ignore:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install build dependencies
+        run: |
+          pacman -Sy --noconfirm archlinux-keyring
+          pacman -S --noconfirm --needed base-devel git namcap pacman-contrib sudo
+
+      - name: Prepare builder user
+        run: |
+          useradd -m builder
+          install -d -m 0750 /etc/sudoers.d
+          printf 'builder ALL=(ALL) NOPASSWD: ALL\n' > /etc/sudoers.d/builder
+          chmod 0440 /etc/sudoers.d/builder
+          chown -R builder:builder "$GITHUB_WORKSPACE"
+
+      - name: Validate changed packages
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            base_ref="${{ github.event.pull_request.base.sha }}"
+          else
+            base_ref="${{ github.event.before }}"
+          fi
+
+          head_ref="${{ github.sha }}"
+
+          su - builder -c "cd '$GITHUB_WORKSPACE' && ./repo/scripts/build_changed.sh \
+            --base '$base_ref' \
+            --head '$head_ref' \
+            --include-dependents \
+            --verify-srcinfo \
+            --lint \
+            --enforce-version-bump \
+            --output-dir '$GITHUB_WORKSPACE/.artifacts/packages'"
+
+      - name: Upload built packages
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: built-packages
+          path: |
+            .artifacts/packages/*.pkg.tar.*
+            .artifacts/packages/*.sig
+          if-no-files-found: ignore

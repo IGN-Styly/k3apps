@@ -1,0 +1,10 @@
+.artifacts/
+.pages/
+packages/*/pkg/
+packages/*/src/
+packages/*/*.pkg.tar.*
+packages/*/*.pkg.tar.*.sig
+packages/*/*.src.tar.*
+packages/*/*.log
+packages/*/upstream/.git/
+
