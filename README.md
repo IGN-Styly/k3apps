@@ -12,6 +12,7 @@
 - `packages/`: one directory per package base.
 - `repo/config/`: shared `makepkg` and `pacman` configuration for local and CI builds.
 - `repo/scripts/`: build, validation, signing, and publish automation.
+- `site/`: static SvelteKit package index published from the root of `gh-pages`.
 - `docs/`: maintainer and client-facing setup guides.
 - `.github/workflows/`: validation, publish, and full rebuild pipelines.
 
@@ -30,12 +31,15 @@ Each package base lives under `packages/<pkgbase>/` and should contain:
 
 ## Local maintainer commands
 
-These commands assume an Arch environment with `base-devel`, `git`, `namcap`, `pacman-contrib`, and `sudo` installed.
+These commands assume an Arch environment with `base-devel`, `git`, `namcap`, `nodejs`, `pacman-contrib`, `pnpm`, and `sudo` installed.
 
 - `make validate PKG=<pkgbase>`: verify `.SRCINFO`, lint, and build a package with its internal dependencies.
 - `make build PKG=<pkgbase>`: build a package and any required internal dependencies.
 - `make srcinfo PKG=<pkgbase>`: regenerate `.SRCINFO`.
 - `make subtree-update PKG=<pkgbase>`: update vendored upstream source using `source.conf`.
+- `make site-dev`: run the static package index locally.
+- `make site-build-pages`: build the package index with the `/k3apps` base path used by GitHub Pages.
+- `make site-check`: run `svelte-check` against the site.
 
 ## GitHub setup
 
@@ -63,3 +67,4 @@ Server = https://<github-user-or-org>.github.io/k3apps/$arch
 
 See [client-setup.md](/home/styly/projects/personal/k3apps/docs/client-setup.md) for the full client bootstrap process.
 
+The static package index is published at `https://<github-user-or-org>.github.io/k3apps/`.

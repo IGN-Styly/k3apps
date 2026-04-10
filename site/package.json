@@ -1,0 +1,37 @@
+{
+	"name": "site",
+	"private": true,
+	"version": "0.0.1",
+	"type": "module",
+	"scripts": {
+		"generate:packages": "node ./scripts/generate-packages.mjs",
+		"predev": "pnpm run generate:packages",
+		"prebuild": "pnpm run generate:packages",
+		"precheck": "pnpm run generate:packages",
+		"dev": "vite dev",
+		"build": "vite build",
+		"build:pages": "BASE_PATH=/k3apps pnpm run build",
+		"preview": "vite preview",
+		"prepare": "svelte-kit sync || echo ''",
+		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
+	},
+	"devDependencies": {
+		"@fontsource-variable/geist": "^5.2.8",
+		"@lucide/svelte": "^1.8.0",
+		"@sveltejs/adapter-static": "latest",
+		"@sveltejs/kit": "latest",
+		"@sveltejs/vite-plugin-svelte": "^7.0.0",
+		"@tailwindcss/vite": "^4.2.2",
+		"clsx": "^2.1.1",
+		"shadcn-svelte": "^1.2.7",
+		"svelte": "^5.55.2",
+		"svelte-check": "^4.4.6",
+		"tailwind-merge": "^3.5.0",
+		"tailwind-variants": "^3.2.2",
+		"tailwindcss": "^4.2.2",
+		"tw-animate-css": "^1.4.0",
+		"typescript": "^6.0.2",
+		"vite": "^8.0.7"
+	}
+}

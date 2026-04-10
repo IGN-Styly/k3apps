@@ -28,7 +28,7 @@ jobs:
       - name: Install build dependencies
         run: |
           pacman -Sy --noconfirm archlinux-keyring
-          pacman -S --noconfirm --needed base-devel git namcap pacman-contrib sudo
+          pacman -S --noconfirm --needed base-devel git namcap nodejs pacman-contrib pnpm sudo
 
       - name: Prepare builder user
         run: |
@@ -37,6 +37,12 @@ jobs:
           printf 'builder ALL=(ALL) NOPASSWD: ALL\n' > /etc/sudoers.d/builder
           chmod 0440 /etc/sudoers.d/builder
           chown -R builder:builder "$GITHUB_WORKSPACE"
+
+      - name: Install site dependencies
+        run: su - builder -c "cd '$GITHUB_WORKSPACE/site' && pnpm install --frozen-lockfile"
+
+      - name: Validate static site
+        run: su - builder -c "cd '$GITHUB_WORKSPACE/site' && pnpm run check && pnpm run build:pages"
 
       - name: Validate changed packages
         run: |

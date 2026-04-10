@@ -1,5 +1,8 @@
 .artifacts/
 .pages/
+site/node_modules/
+site/.svelte-kit/
+site/build/
 packages/*/pkg/
 packages/*/src/
 packages/*/*.pkg.tar.*
@@ -7,4 +10,3 @@ packages/*/*.pkg.tar.*.sig
 packages/*/*.src.tar.*
 packages/*/*.log
 packages/*/upstream/.git/
-

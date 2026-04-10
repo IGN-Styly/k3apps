@@ -30,7 +30,7 @@ jobs:
       - name: Install build dependencies
         run: |
           pacman -Sy --noconfirm archlinux-keyring
-          pacman -S --noconfirm --needed base-devel git gnupg pacman-contrib sudo
+          pacman -S --noconfirm --needed base-devel git gnupg nodejs pacman-contrib pnpm rsync sudo
 
       - name: Prepare builder user
         run: |
@@ -39,6 +39,12 @@ jobs:
           printf 'builder ALL=(ALL) NOPASSWD: ALL\n' > /etc/sudoers.d/builder
           chmod 0440 /etc/sudoers.d/builder
           chown -R builder:builder "$GITHUB_WORKSPACE"
+
+      - name: Install site dependencies
+        run: su - builder -c "cd '$GITHUB_WORKSPACE/site' && pnpm install --frozen-lockfile"
+
+      - name: Build static site
+        run: su - builder -c "cd '$GITHUB_WORKSPACE/site' && pnpm run build:pages"
 
       - name: Build changed packages
         run: |
@@ -74,7 +80,6 @@ jobs:
         run: ./repo/scripts/import_gpg_key.sh --export "$GITHUB_WORKSPACE/.artifacts/repo-signing-key.asc"
 
       - name: Prepare gh-pages worktree
-        if: steps.artifacts.outputs.has_packages == 'true'
         run: |
           if git ls-remote --exit-code origin gh-pages >/dev/null 2>&1; then
             git fetch origin gh-pages
@@ -89,6 +94,12 @@ jobs:
           git -C "$GITHUB_WORKSPACE/.pages" config user.name "github-actions[bot]"
           git -C "$GITHUB_WORKSPACE/.pages" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+      - name: Publish static site
+        run: |
+          ./repo/scripts/publish_site.sh \
+            --site-dir "$GITHUB_WORKSPACE/site/build" \
+            --pages-dir "$GITHUB_WORKSPACE/.pages"
+
       - name: Publish pacman repo
         if: steps.artifacts.outputs.has_packages == 'true'
         run: |
@@ -98,14 +109,16 @@ jobs:
             --repo-name k3apps \
             --arch x86_64
 
-          if [[ -n "$(git -C "$GITHUB_WORKSPACE/.pages" status --short)" ]]; then
-            git -C "$GITHUB_WORKSPACE/.pages" add .
-            git -C "$GITHUB_WORKSPACE/.pages" commit -m "Publish repo for ${GITHUB_SHA}"
-            git -C "$GITHUB_WORKSPACE/.pages" push origin gh-pages
-          else
-            echo "No repo changes to publish."
-          fi
-
-      - name: Skip publish
+      - name: Skip repo publish
         if: steps.artifacts.outputs.has_packages != 'true'
         run: echo "No package artifacts were built; skipping publish."
+
+      - name: Push gh-pages updates
+        run: |
+          if [[ -n "$(git -C "$GITHUB_WORKSPACE/.pages" status --short)" ]]; then
+            git -C "$GITHUB_WORKSPACE/.pages" add .
+            git -C "$GITHUB_WORKSPACE/.pages" commit -m "Publish site and repo for ${GITHUB_SHA}"
+            git -C "$GITHUB_WORKSPACE/.pages" push origin gh-pages
+          else
+            echo "No gh-pages changes to publish."
+          fi

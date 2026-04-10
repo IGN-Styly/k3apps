@@ -1,0 +1,63 @@
+{
+  "packageCount": 1,
+  "architectures": [
+    "x86_64"
+  ],
+  "packages": [
+    {
+      "pkgbase": "t3code",
+      "pkgnames": [
+        "t3code"
+      ],
+      "pkgdesc": "T3 Code desktop app built from the vendored t3code fork",
+      "pkgver": "0.0.16",
+      "pkgrel": "1",
+      "version": "0.0.16-1",
+      "arch": [
+        "x86_64"
+      ],
+      "depends": [
+        "alsa-lib",
+        "at-spi2-core",
+        "cairo",
+        "dbus",
+        "expat",
+        "gcc-libs",
+        "gdk-pixbuf2",
+        "glib2",
+        "gtk3",
+        "hicolor-icon-theme",
+        "libcups",
+        "libdrm",
+        "libx11",
+        "libxcb",
+        "libxcomposite",
+        "libxdamage",
+        "libxext",
+        "libxfixes",
+        "libxkbcommon",
+        "libxrandr",
+        "mesa",
+        "nspr",
+        "nss",
+        "pango",
+        "systemd-libs",
+        "xdg-utils",
+        "zlib"
+      ],
+      "makedepends": [
+        "bun",
+        "git",
+        "python",
+        "rsync"
+      ],
+      "checkdepends": [],
+      "url": "https://t3.codes",
+      "sourceUrl": "https://github.com/IGN-Styly/t3code.git",
+      "upstreamRef": "main",
+      "upstreamPrefix": "packages/t3code/upstream",
+      "packagePath": "packages/t3code",
+      "searchText": "t3code t3 code desktop app built from the vendored t3code fork 0.0.16-1 t3code x86_64 alsa-lib at-spi2-core cairo dbus expat gcc-libs gdk-pixbuf2 glib2 gtk3 hicolor-icon-theme libcups libdrm libx11 libxcb libxcomposite libxdamage libxext libxfixes libxkbcommon libxrandr mesa nspr nss pango systemd-libs xdg-utils zlib bun git python rsync https://t3.codes https://github.com/ign-styly/t3code.git packages/t3code"
+    }
+  ]
+}
