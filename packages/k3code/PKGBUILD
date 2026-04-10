@@ -1,9 +1,9 @@
 # Maintainer: Styly
 
-pkgname=t3code
+pkgname=k3code
 pkgver=0.0.16
 pkgrel=1
-pkgdesc='T3 Code desktop app built from the vendored t3code fork'
+pkgdesc='k3Code desktop app, a vendored t3code fork'
 arch=('x86_64')
 url='https://t3.codes'
 license=('MIT')
