@@ -1,4 +1,4 @@
-# t3code
+# k3code
 
 This package builds the desktop AppImage from the vendored `t3code` fork and then repackages the extracted payload using the `t3code-bin` AUR package layout as the template.
 
