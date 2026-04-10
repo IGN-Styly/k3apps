@@ -20,6 +20,7 @@ jobs:
       ARCH_REPO_GPG_PRIVATE_KEY: ${{ secrets.ARCH_REPO_GPG_PRIVATE_KEY }}
       ARCH_REPO_GPG_PASSPHRASE: ${{ secrets.ARCH_REPO_GPG_PASSPHRASE }}
       ARCH_REPO_GPG_KEY_ID: ${{ secrets.ARCH_REPO_GPG_KEY_ID }}
+      GITHUB_PAGES_MAX_FILE_SIZE_BYTES: "95000000"
       GNUPGHOME: ${{ github.workspace }}/.artifacts/gnupg
     steps:
       - name: Install checkout prerequisites

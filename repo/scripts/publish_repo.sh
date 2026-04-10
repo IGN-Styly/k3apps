@@ -8,6 +8,7 @@ pages_dir=""
 repo_name="k3apps"
 arch="x86_64"
 clean_publish=0
+max_file_size_bytes="${GITHUB_PAGES_MAX_FILE_SIZE_BYTES:-0}"
 
 package_name_from_file() {
   bsdtar -xOf "$1" .PKGINFO | awk -F ' = ' '$1 == "pkgname" { print $2; exit }'
@@ -65,6 +66,7 @@ artifacts_dir="$(cd "$artifacts_dir" && pwd)"
 arch_dir="$(cd "$pages_dir/$arch" && pwd)"
 repo_db="$arch_dir/$repo_name.db.tar.zst"
 repo_files="$arch_dir/$repo_name.files.tar.zst"
+warning_file="$arch_dir/PUBLISH-WARNINGS.txt"
 
 if (( clean_publish )); then
   find "$arch_dir" -maxdepth 1 -type f \
@@ -73,8 +75,18 @@ if (( clean_publish )); then
 fi
 
 mapfile -t built_pkgfiles < <(find "$artifacts_dir" -maxdepth 1 -type f -name '*.pkg.tar.*' ! -name '*.sig' | sort)
+declare -a skipped_pkgfiles=()
 
 for pkgfile in "${built_pkgfiles[@]}"; do
+  if (( max_file_size_bytes > 0 )); then
+    pkgfile_size="$(stat -c '%s' "$pkgfile")"
+    if (( pkgfile_size > max_file_size_bytes )); then
+      log "skipping '$pkgfile' because it exceeds the configured publish limit (${pkgfile_size} > ${max_file_size_bytes})"
+      skipped_pkgfiles+=("$pkgfile")
+      continue
+    fi
+  fi
+
   pkgname="$(package_name_from_file "$pkgfile")"
 
   while IFS= read -r existing_pkg; do
@@ -94,6 +106,17 @@ for pkgfile in "${built_pkgfiles[@]}"; do
     cp -f "$pkgfile.sig" "$arch_dir/"
   fi
 done
+
+if (( ${#skipped_pkgfiles[@]} > 0 )); then
+  {
+    printf 'The following package files were skipped during publish because they exceed the configured GitHub Pages push limit (%s bytes).\n\n' "$max_file_size_bytes"
+    for skipped_pkgfile in "${skipped_pkgfiles[@]}"; do
+      printf '%s\t%s bytes\n' "$(basename "$skipped_pkgfile")" "$(stat -c '%s' "$skipped_pkgfile")"
+    done
+  } > "$warning_file"
+else
+  rm -f "$warning_file"
+fi
 
 rm -f "$repo_db" "$repo_db.sig" "$arch_dir/$repo_name.db" "$arch_dir/$repo_name.db.sig"
 rm -f "$repo_files" "$repo_files.sig" "$arch_dir/$repo_name.files" "$arch_dir/$repo_name.files.sig"
