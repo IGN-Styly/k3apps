@@ -38,13 +38,9 @@ pages_dir="$(cd "$pages_dir" && pwd)"
 if (( clean_publish )); then
   find "$pages_dir" -mindepth 1 -maxdepth 1 \
     ! -name '.git' \
-    ! -name 'x86_64' \
-    ! -name 'repo-signing-key.asc' \
     -exec rm -rf {} +
 fi
 
 rsync -a --delete \
   --exclude '/.git' \
-  --exclude '/x86_64' \
-  --exclude '/repo-signing-key.asc' \
   "$site_dir"/ "$pages_dir"/

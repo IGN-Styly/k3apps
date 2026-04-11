@@ -68,7 +68,8 @@
 				<h1 class="text-5xl font-semibold uppercase tracking-[-0.1em] md:text-7xl">k3apps</h1>
 				<p class="max-w-2xl text-sm leading-relaxed text-foreground/78 md:text-base">
 					Search the packages published from this repository. The interface is static, the
-					results are client-side, and the pacman repo stays under <code>x86_64/</code>.
+					results are client-side, and the pacman repo assets are published from a fixed
+					GitHub Release.
 				</p>
 			</div>
 

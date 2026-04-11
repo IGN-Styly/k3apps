@@ -2,7 +2,7 @@
 
 Do not commit private keys into this repository.
 
-The publish workflows can run without keys and will publish an unsigned pacman repo by default.
+The publish workflows can run without keys and will publish an unsigned pacman repo release by default.
 
 If you want signed package publishing, configure these GitHub Actions secrets:
 

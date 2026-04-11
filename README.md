@@ -1,11 +1,12 @@
 # k3apps
 
-`k3apps` is a source monorepo for custom Arch Linux packages plus the CI needed to publish a pacman repository to GitHub Pages.
+`k3apps` is a source monorepo for custom Arch Linux packages plus the CI needed to publish a pacman repository and static package index.
 
-## Branch contract
+## Publish contract
 
 - `main`: package source, `PKGBUILD`s, vendored upstream trees, patches, and CI.
-- `gh-pages`: generated binary repository content served by GitHub Pages.
+- `gh-pages`: generated static site served by GitHub Pages.
+- `repo-x86_64` release tag: generated pacman repository assets for `x86_64`.
 
 ## Repository layout
 
@@ -57,14 +58,14 @@ Add the following repository secrets if you want signed package publishing:
 
 ## Client configuration
 
-Published packages are served as the `k3apps` repo.
+Published packages are served as the `k3apps` repo from the fixed GitHub Release tag `repo-x86_64`.
 
 Unsigned mode, the current default when no signing secrets are configured:
 
 ```ini
 [k3apps]
 SigLevel = Optional TrustAll
-Server = https://<github-user-or-org>.github.io/k3apps/$arch
+Server = https://github.com/<github-user-or-org>/k3apps/releases/download/repo-x86_64
 ```
 
 If you later configure signing secrets, switch clients to the signed setup documented in [client-setup.md](/home/styly/projects/personal/k3apps/docs/client-setup.md).

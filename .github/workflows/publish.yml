@@ -17,10 +17,12 @@ jobs:
       run:
         shell: bash
     env:
+      GH_TOKEN: ${{ github.token }}
       ARCH_REPO_GPG_PRIVATE_KEY: ${{ secrets.ARCH_REPO_GPG_PRIVATE_KEY }}
       ARCH_REPO_GPG_PASSPHRASE: ${{ secrets.ARCH_REPO_GPG_PASSPHRASE }}
       ARCH_REPO_GPG_KEY_ID: ${{ secrets.ARCH_REPO_GPG_KEY_ID }}
-      GITHUB_PAGES_MAX_FILE_SIZE_BYTES: "95000000"
+      GITHUB_RELEASE_MAX_FILE_SIZE_BYTES: "2000000000"
+      PACMAN_RELEASE_TAG: repo-x86_64
       GNUPGHOME: ${{ github.workspace }}/.artifacts/gnupg
     steps:
       - name: Install checkout prerequisites
@@ -42,7 +44,7 @@ jobs:
       - name: Install build dependencies
         run: |
           pacman -Sy --noconfirm archlinux-keyring
-          pacman -S --noconfirm --needed base-devel gnupg nodejs pacman-contrib pnpm rsync sudo
+          pacman -S --noconfirm --needed base-devel github-cli gnupg nodejs pacman-contrib pnpm rsync sudo
 
       - name: Prepare builder user
         run: |
@@ -121,26 +123,52 @@ jobs:
             --site-dir "$GITHUB_WORKSPACE/site/build" \
             --pages-dir "$GITHUB_WORKSPACE/.pages"
 
-      - name: Publish pacman repo
-        if: steps.artifacts.outputs.has_packages == 'true'
-        run: |
-          ./repo/scripts/publish_repo.sh \
-            --artifacts-dir "$GITHUB_WORKSPACE/.artifacts/packages" \
-            --pages-dir "$GITHUB_WORKSPACE/.pages" \
-            --repo-name k3apps \
-            --arch x86_64
-
-      - name: Skip repo publish
-        if: steps.artifacts.outputs.has_packages != 'true'
-        run: echo "No package artifacts were built; skipping publish."
-
       - name: Push gh-pages updates
         run: |
           status_output="$(git -C "$GITHUB_WORKSPACE/.pages" status --short)"
           if [[ -n "$status_output" ]]; then
             git -C "$GITHUB_WORKSPACE/.pages" add .
-            git -C "$GITHUB_WORKSPACE/.pages" commit -m "Publish site and repo for ${GITHUB_SHA}"
+            git -C "$GITHUB_WORKSPACE/.pages" commit -m "Publish site for ${GITHUB_SHA}"
             git -C "$GITHUB_WORKSPACE/.pages" push origin gh-pages
           else
             echo "No gh-pages changes to publish."
           fi
+
+      - name: Sync pacman release assets
+        if: steps.artifacts.outputs.has_packages == 'true'
+        run: |
+          ./repo/scripts/sync_release_repo.sh \
+            --repo "$GITHUB_REPOSITORY" \
+            --tag "$PACMAN_RELEASE_TAG" \
+            --repo-dir "$GITHUB_WORKSPACE/.release-repo"
+
+      - name: Build pacman release payload
+        if: steps.artifacts.outputs.has_packages == 'true'
+        run: |
+          ./repo/scripts/publish_repo.sh \
+            --artifacts-dir "$GITHUB_WORKSPACE/.artifacts/packages" \
+            --repo-dir "$GITHUB_WORKSPACE/.release-repo" \
+            --repo-name k3apps
+
+      - name: Publish pacman release
+        if: steps.artifacts.outputs.has_packages == 'true'
+        run: |
+          release_notes="$(mktemp)"
+          cat > "$release_notes" <<EOF
+          Automated pacman repository assets for x86_64.
+
+          Pacman server base URL:
+          https://github.com/${GITHUB_REPOSITORY}/releases/download/${PACMAN_RELEASE_TAG}
+          EOF
+
+          ./repo/scripts/publish_release_assets.sh \
+            --repo "$GITHUB_REPOSITORY" \
+            --tag "$PACMAN_RELEASE_TAG" \
+            --asset-dir "$GITHUB_WORKSPACE/.release-repo" \
+            --title "k3apps pacman repo (x86_64)" \
+            --notes "$(cat "$release_notes")" \
+            --target "${GITHUB_SHA}"
+
+      - name: Skip pacman release publish
+        if: steps.artifacts.outputs.has_packages != 'true'
+        run: echo "No package artifacts were built; skipping release publish."

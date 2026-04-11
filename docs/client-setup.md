@@ -9,7 +9,7 @@ If the repository is being published without GitHub Actions signing secrets, use
 ```ini
 [k3apps]
 SigLevel = Optional TrustAll
-Server = https://<github-user-or-org>.github.io/k3apps/$arch
+Server = https://github.com/<github-user-or-org>/k3apps/releases/download/repo-x86_64
 ```
 
 Then refresh pacman:
@@ -20,19 +20,19 @@ sudo pacman -Sy
 
 ## Signed mode
 
-If `repo-signing-key.asc` is published at the repo root, you can use signature verification instead.
+If `repo-signing-key.asc` is published as a release asset under `repo-x86_64`, you can use signature verification instead.
 
 ```ini
 [k3apps]
 SigLevel = Required DatabaseOptional
-Server = https://<github-user-or-org>.github.io/k3apps/$arch
+Server = https://github.com/<github-user-or-org>/k3apps/releases/download/repo-x86_64
 ```
 
 ### 1. Import the public signing key
 
 ```bash
 curl -fsSLo /tmp/k3apps-repo-signing-key.asc \
-  https://<github-user-or-org>.github.io/k3apps/repo-signing-key.asc
+  https://github.com/<github-user-or-org>/k3apps/releases/download/repo-x86_64/repo-signing-key.asc
 sudo pacman-key --add /tmp/k3apps-repo-signing-key.asc
 ```
 
