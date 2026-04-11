@@ -1,3 +1,0 @@
-The following package files were skipped during publish because they exceed the configured GitHub Pages push limit (95000000 bytes).
-
-k3code-0.0.17-1-x86_64.pkg.tar.zst	164111258 bytes
