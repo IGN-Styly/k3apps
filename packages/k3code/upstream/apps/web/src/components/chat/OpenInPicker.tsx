@@ -18,7 +18,7 @@ export const OpenInPicker = memo(function OpenInPicker({
   availableEditors: ReadonlyArray<EditorId>;
   openInCwd: string | null;
 }) {
-  const [preferredEditor, setPreferredEditor] = usePreferredEditor(availableEditors);
+  const [preferredEditor] = usePreferredEditor(availableEditors);
   const options = useMemo(
     () => resolveEditorOptions(navigator.platform, availableEditors),
     [availableEditors],
@@ -26,17 +26,14 @@ export const OpenInPicker = memo(function OpenInPicker({
   const primaryOption = options.find(({ value }) => value === preferredEditor) ?? null;
 
   const openInEditor = useCallback(
-    (editorId: EditorId | null, persistPreference = true) => {
+    (editorId: EditorId | null) => {
       const api = readLocalApi();
       if (!api || !openInCwd) return;
       const editor = editorId ?? preferredEditor;
       if (!editor) return;
       void api.shell.openInEditor(openInCwd, editor);
-      if (persistPreference) {
-        setPreferredEditor(editor);
-      }
     },
-    [preferredEditor, openInCwd, setPreferredEditor],
+    [preferredEditor, openInCwd],
   );
 
   const openFavoriteEditorShortcutLabel = useMemo(
@@ -64,7 +61,7 @@ export const OpenInPicker = memo(function OpenInPicker({
         size="xs"
         variant="outline"
         disabled={!preferredEditor || !openInCwd}
-        onClick={() => openInEditor(preferredEditor, false)}
+        onClick={() => openInEditor(preferredEditor)}
       >
         {primaryOption?.Icon && <primaryOption.Icon aria-hidden="true" className="size-3.5" />}
         <span className="sr-only @3xl/header-actions:not-sr-only @3xl/header-actions:ml-0.5">

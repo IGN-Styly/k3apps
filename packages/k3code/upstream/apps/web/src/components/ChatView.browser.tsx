@@ -1892,7 +1892,14 @@ describe("ChatView timeline estimator parity (full app)", () => {
     }
   });
 
-  it("filters the open picker menu and opens VSCodium from the menu", async () => {
+  it("opens a one-off editor from the picker without changing the preferred editor", async () => {
+    localStorage.setItem(
+      "t3code:client-settings:v1",
+      JSON.stringify({
+        ...DEFAULT_CLIENT_SETTINGS,
+        preferredEditor: "vscode-insiders",
+      }),
+    );
     setDraftThreadWithoutWorktree();
 
     const mounted = await mountChatView({
@@ -1946,6 +1953,30 @@ describe("ChatView timeline estimator parity (full app)", () => {
             _tag: WS_METHODS.shellOpenInEditor,
             cwd: "/repo/project",
             editor: "vscodium",
+          });
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+
+      const openButton = await waitForElement(
+        () =>
+          Array.from(document.querySelectorAll("button")).find(
+            (button) => button.textContent?.trim() === "Open",
+          ) as HTMLButtonElement | null,
+        "Unable to find Open button.",
+      );
+      openButton.click();
+
+      await vi.waitFor(
+        () => {
+          const openRequests = wsRequests.filter(
+            (request) => request._tag === WS_METHODS.shellOpenInEditor,
+          );
+          expect(openRequests).toHaveLength(2);
+          expect(openRequests[1]).toMatchObject({
+            _tag: WS_METHODS.shellOpenInEditor,
+            cwd: "/repo/project",
+            editor: "vscode-insiders",
           });
         },
         { timeout: 8_000, interval: 16 },
