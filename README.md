@@ -1,6 +1,6 @@
 # k3apps
 
-`k3apps` is a source monorepo for custom Arch Linux packages plus the CI needed to publish a signed pacman repository.
+`k3apps` is a source monorepo for custom Arch Linux packages plus the CI needed to publish a pacman repository to GitHub Pages.
 
 ## Branch contract
 
@@ -11,7 +11,7 @@
 
 - `packages/`: one directory per package base.
 - `repo/config/`: shared `makepkg` and `pacman` configuration for local and CI builds.
-- `repo/scripts/`: build, validation, signing, and publish automation.
+- `repo/scripts/`: build, validation, optional signing, and publish automation.
 - `site/`: static SvelteKit package index published from the root of `gh-pages`.
 - `docs/`: maintainer and client-facing setup guides.
 - `.github/workflows/`: validation, publish, and full rebuild pipelines.
@@ -49,7 +49,7 @@ Configure the repository with:
 - GitHub Pages serving from `gh-pages` root
 - Actions permission to write repository contents
 
-Add the following repository secrets before merging package changes to `main`:
+Add the following repository secrets if you want signed package publishing:
 
 - `ARCH_REPO_GPG_PRIVATE_KEY`
 - `ARCH_REPO_GPG_PASSPHRASE`
@@ -57,14 +57,16 @@ Add the following repository secrets before merging package changes to `main`:
 
 ## Client configuration
 
-Published packages are served as the `k3apps` repo:
+Published packages are served as the `k3apps` repo.
+
+Unsigned mode, the current default when no signing secrets are configured:
 
 ```ini
 [k3apps]
-SigLevel = Required DatabaseOptional
+SigLevel = Optional TrustAll
 Server = https://<github-user-or-org>.github.io/k3apps/$arch
 ```
 
-See [client-setup.md](/home/styly/projects/personal/k3apps/docs/client-setup.md) for the full client bootstrap process.
+If you later configure signing secrets, switch clients to the signed setup documented in [client-setup.md](/home/styly/projects/personal/k3apps/docs/client-setup.md).
 
 The static package index is published at `https://<github-user-or-org>.github.io/k3apps/`.

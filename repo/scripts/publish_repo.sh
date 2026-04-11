@@ -143,6 +143,6 @@ fi
 
 if [[ -n "${ARCH_REPO_GPG_KEY_ID:-}" ]] && gpg --batch --yes --list-keys "${ARCH_REPO_GPG_KEY_ID}" >/dev/null 2>&1; then
   gpg --batch --yes --armor --export "${ARCH_REPO_GPG_KEY_ID}" > "$pages_dir/repo-signing-key.asc"
-elif (( clean_publish )); then
+else
   rm -f "$pages_dir/repo-signing-key.asc"
 fi

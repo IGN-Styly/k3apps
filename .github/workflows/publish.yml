@@ -80,15 +80,23 @@ jobs:
             echo "has_packages=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Check signing configuration
+      - name: Resolve signing mode
+        id: signing
         if: steps.artifacts.outputs.has_packages == 'true'
         run: |
-          [[ -n "${ARCH_REPO_GPG_PRIVATE_KEY}" ]] || { echo "::error::ARCH_REPO_GPG_PRIVATE_KEY is not set"; exit 1; }
-          [[ -n "${ARCH_REPO_GPG_PASSPHRASE}" ]] || { echo "::error::ARCH_REPO_GPG_PASSPHRASE is not set"; exit 1; }
-          [[ -n "${ARCH_REPO_GPG_KEY_ID}" ]] || { echo "::error::ARCH_REPO_GPG_KEY_ID is not set"; exit 1; }
+          if [[ -n "${ARCH_REPO_GPG_PRIVATE_KEY}" && -n "${ARCH_REPO_GPG_KEY_ID}" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "Using signed package-repo publish."
+          elif [[ -z "${ARCH_REPO_GPG_PRIVATE_KEY}" && -z "${ARCH_REPO_GPG_PASSPHRASE}" && -z "${ARCH_REPO_GPG_KEY_ID}" ]]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Publishing an unsigned pacman repo because no signing secrets are configured."
+          else
+            echo "::error::Signing secrets are partially configured. Set ARCH_REPO_GPG_PRIVATE_KEY and ARCH_REPO_GPG_KEY_ID together, or remove all signing secrets to publish unsigned."
+            exit 1
+          fi
 
       - name: Import signing key
-        if: steps.artifacts.outputs.has_packages == 'true'
+        if: steps.artifacts.outputs.has_packages == 'true' && steps.signing.outputs.enabled == 'true'
         run: ./repo/scripts/import_gpg_key.sh --export "$GITHUB_WORKSPACE/.artifacts/repo-signing-key.asc"
 
       - name: Prepare gh-pages worktree
