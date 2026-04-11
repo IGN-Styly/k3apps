@@ -1,7 +1,7 @@
-import { EDITORS, EditorId, type LocalApi } from "@t3tools/contracts";
+import { type EditorId, type LocalApi } from "@t3tools/contracts";
 import { useCallback, useMemo } from "react";
 import { useSettings, useUpdateSettings } from "./hooks/useSettings";
-import { getLocalStorageItem, removeLocalStorageItem } from "./hooks/useLocalStorage";
+import { removeLocalStorageItem } from "./hooks/useLocalStorage";
 
 const LEGACY_LAST_EDITOR_KEY = "t3code:last-editor";
 
@@ -13,20 +13,10 @@ export function resolvePreferredEditor(
   availableEditors: ReadonlyArray<EditorId>,
   preferredEditor: EditorId | null | undefined,
 ): EditorId | null {
-  const availableEditorIds = new Set(availableEditors);
-  const firstAvailableEditor =
-    EDITORS.find((editor) => availableEditorIds.has(editor.id))?.id ?? null;
-
-  if (preferredEditor) {
-    return availableEditorIds.has(preferredEditor) ? preferredEditor : firstAvailableEditor;
+  if (!preferredEditor) {
+    return null;
   }
-
-  const legacyEditor = getLocalStorageItem(LEGACY_LAST_EDITOR_KEY, EditorId);
-  if (legacyEditor && availableEditorIds.has(legacyEditor)) {
-    return legacyEditor;
-  }
-
-  return firstAvailableEditor;
+  return availableEditors.includes(preferredEditor) ? preferredEditor : null;
 }
 
 export function usePreferredEditor(availableEditors: ReadonlyArray<EditorId>) {
@@ -53,8 +43,17 @@ export async function openInPreferredEditor(api: LocalApi, targetPath: string): 
     api.server.getConfig(),
     api.persistence.getClientSettings(),
   ]);
+  const preferredEditor = clientSettings?.preferredEditor;
   const editor = resolvePreferredEditor(config.availableEditors, clientSettings?.preferredEditor);
-  if (!editor) throw new Error("No available editors found.");
+  if (!editor) {
+    if (config.availableEditors.length === 0) {
+      throw new Error("No available editors found.");
+    }
+    if (!preferredEditor) {
+      throw new Error("No preferred editor selected.");
+    }
+    throw new Error("Preferred editor is unavailable.");
+  }
   await api.shell.openInEditor(targetPath, editor);
   return editor;
 }

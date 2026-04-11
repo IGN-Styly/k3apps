@@ -37,7 +37,6 @@ import { TraitsPicker } from "../chat/TraitsPicker";
 import {
   clearLegacyPreferredEditorPreference,
   openInPreferredEditor,
-  resolvePreferredEditor,
 } from "../../editorPreferences";
 import { isElectron } from "../../env";
 import { type Theme, useTheme } from "../../hooks/useTheme";
@@ -698,10 +697,6 @@ export function GeneralSettingsPanel() {
         : THEME_OPTIONS,
     [ambxstAvailable, theme],
   );
-  const effectivePreferredEditor = useMemo(
-    () => resolvePreferredEditor(availableEditors, settings.preferredEditor),
-    [availableEditors, settings.preferredEditor],
-  );
   const preferredEditorOptions = useMemo(() => {
     const options = resolveEditorOptions(editorPlatform, availableEditors).map((option) => ({
       value: option.value,
@@ -731,16 +726,14 @@ export function GeneralSettingsPanel() {
     }
     if (settings.preferredEditor && !availableEditors.includes(settings.preferredEditor)) {
       const storedEditorLabel = getEditorOption(editorPlatform, settings.preferredEditor).label;
-      return effectivePreferredEditor
-        ? `${storedEditorLabel} is unavailable right now. Open actions will use ${getEditorOption(editorPlatform, effectivePreferredEditor).label} until it returns.`
-        : `${storedEditorLabel} is unavailable right now.`;
+      return `${storedEditorLabel} is unavailable right now. Choose another editor to re-enable open actions.`;
     }
-    if (!settings.preferredEditor && effectivePreferredEditor) {
-      return `Currently using ${getEditorOption(editorPlatform, effectivePreferredEditor).label} for opening workspaces, logs, and config files.`;
+    if (!settings.preferredEditor) {
+      return "Choose which app open actions use across T3 Code.";
     }
-    return "Choose which app open actions use across T3 Code.";
+    return `${getEditorOption(editorPlatform, settings.preferredEditor).label} is selected for opening workspaces, logs, and config files.`;
   })();
-  const selectedEditorValue = settings.preferredEditor ?? effectivePreferredEditor ?? "";
+  const selectedEditorValue = settings.preferredEditor ?? "";
   const selectedEditorOption =
     (selectedEditorValue
       ? (preferredEditorOptions.find((option) => option.value === selectedEditorValue) ??
@@ -818,7 +811,10 @@ export function GeneralSettingsPanel() {
                         className="size-4 text-muted-foreground"
                       />
                     ) : null}
-                    <span>{selectedEditorOption?.label ?? "No editors found"}</span>
+                    <span>
+                      {selectedEditorOption?.label ??
+                        (availableEditors.length > 0 ? "Choose editor" : "No editors found")}
+                    </span>
                   </span>
                 </SelectValue>
               </SelectTrigger>

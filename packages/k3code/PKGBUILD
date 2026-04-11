@@ -2,7 +2,7 @@
 
 pkgname=k3code
 pkgver=0.0.17
-pkgrel=1
+pkgrel=2
 pkgdesc='k3Code desktop app, a vendored t3code fork'
 arch=('x86_64')
 url='https://t3.codes'
@@ -118,7 +118,7 @@ package() {
 #!/usr/bin/env bash
 set -euo pipefail
 
-appdir='/opt/t3code'
+appdir='/opt/k3code'
 export APPDIR="$appdir"
 
 if [[ -z "${CODEX_CLI_PATH-}" ]] && command -v codex >/dev/null 2>&1; then
@@ -136,7 +136,7 @@ else
   extra_flags+=(--ozone-platform-hint=auto)
 fi
 
-exec "$appdir/AppRun" --no-sandbox "${extra_flags[@]}" "$@"
+exec "$appdir/t3code" --no-sandbox "${extra_flags[@]}" "$@"
 EOF
 
   ln -s t3code "$pkgdir/usr/bin/t3-code-desktop"

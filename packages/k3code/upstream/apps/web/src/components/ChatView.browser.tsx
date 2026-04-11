@@ -1955,8 +1955,14 @@ describe("ChatView timeline estimator parity (full app)", () => {
     }
   });
 
-  it("falls back to the first installed editor when the stored favorite is unavailable", async () => {
-    localStorage.setItem("t3code:last-editor", JSON.stringify("vscodium"));
+  it("disables the open button when the preferred editor is unavailable", async () => {
+    localStorage.setItem(
+      "t3code:client-settings:v1",
+      JSON.stringify({
+        ...DEFAULT_CLIENT_SETTINGS,
+        preferredEditor: "vscodium",
+      }),
+    );
     setDraftThreadWithoutWorktree();
 
     const mounted = await mountChatView({
@@ -1980,23 +1986,8 @@ describe("ChatView timeline estimator parity (full app)", () => {
         "Unable to find Open button.",
       );
       await vi.waitFor(() => {
-        expect(openButton.disabled).toBe(false);
+        expect(openButton.disabled).toBe(true);
       });
-      openButton.click();
-
-      await vi.waitFor(
-        () => {
-          const openRequest = wsRequests.find(
-            (request) => request._tag === WS_METHODS.shellOpenInEditor,
-          );
-          expect(openRequest).toMatchObject({
-            _tag: WS_METHODS.shellOpenInEditor,
-            cwd: "/repo/project",
-            editor: "vscode-insiders",
-          });
-        },
-        { timeout: 8_000, interval: 16 },
-      );
     } finally {
       await mounted.cleanup();
     }
