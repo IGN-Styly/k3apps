@@ -1,24 +1,63 @@
 {
   "packageCount": 1,
-  "architectures": [],
+  "architectures": [
+    "x86_64"
+  ],
   "packages": [
     {
       "pkgbase": "k3code",
-      "pkgnames": [],
-      "pkgdesc": "",
-      "pkgver": "",
-      "pkgrel": "",
-      "version": "",
-      "arch": [],
-      "depends": [],
-      "makedepends": [],
+      "pkgnames": [
+        "k3code"
+      ],
+      "pkgdesc": "k3Code desktop app, a vendored t3code fork",
+      "pkgver": "0.0.17",
+      "pkgrel": "1",
+      "version": "0.0.17-1",
+      "arch": [
+        "x86_64"
+      ],
+      "depends": [
+        "alsa-lib",
+        "at-spi2-core",
+        "cairo",
+        "dbus",
+        "expat",
+        "gcc-libs",
+        "gdk-pixbuf2",
+        "glib2",
+        "gtk3",
+        "hicolor-icon-theme",
+        "libcups",
+        "libdrm",
+        "libx11",
+        "libxcb",
+        "libxcomposite",
+        "libxdamage",
+        "libxext",
+        "libxfixes",
+        "libxkbcommon",
+        "libxrandr",
+        "mesa",
+        "nspr",
+        "nss",
+        "pango",
+        "systemd-libs",
+        "xdg-utils",
+        "zlib"
+      ],
+      "makedepends": [
+        "bun",
+        "git",
+        "python",
+        "rsync"
+      ],
       "checkdepends": [],
-      "url": "",
+      "url": "https://t3.codes",
       "sourceUrl": "https://github.com/IGN-Styly/t3code.git",
       "upstreamRef": "main",
       "upstreamPrefix": "packages/k3code/upstream",
       "packagePath": "packages/k3code",
-      "searchText": "k3code https://github.com/ign-styly/t3code.git packages/k3code"
+      "searchText": "k3code k3code desktop app, a vendored t3code fork 0.0.17-1 k3code x86_64 alsa-lib at-spi2-core cairo dbus expat gcc-libs gdk-pixbuf2 glib2 gtk3 hicolor-icon-theme libcups libdrm libx11 libxcb libxcomposite libxdamage libxext libxfixes libxkbcommon libxrandr mesa nspr nss pango systemd-libs xdg-utils zlib bun git python rsync https://t3.codes https://github.com/ign-styly/t3code.git packages/k3code"
     }
   ]
 }
