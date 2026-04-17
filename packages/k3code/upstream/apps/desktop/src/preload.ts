@@ -4,16 +4,16 @@ import type { DesktopBridge } from "@t3tools/contracts";
 const PICK_FOLDER_CHANNEL = "desktop:pick-folder";
 const CONFIRM_CHANNEL = "desktop:confirm";
 const SET_THEME_CHANNEL = "desktop:set-theme";
-const GET_AMBXST_THEME_CHANNEL = "desktop:get-ambxst-theme";
-const AMBXST_THEME_CHANNEL = "desktop:ambxst-theme";
 const CONTEXT_MENU_CHANNEL = "desktop:context-menu";
 const OPEN_EXTERNAL_CHANNEL = "desktop:open-external";
 const MENU_ACTION_CHANNEL = "desktop:menu-action";
 const UPDATE_STATE_CHANNEL = "desktop:update-state";
 const UPDATE_GET_STATE_CHANNEL = "desktop:update-get-state";
+const UPDATE_SET_CHANNEL_CHANNEL = "desktop:update-set-channel";
 const UPDATE_CHECK_CHANNEL = "desktop:update-check";
 const UPDATE_DOWNLOAD_CHANNEL = "desktop:update-download";
 const UPDATE_INSTALL_CHANNEL = "desktop:update-install";
+const GET_APP_BRANDING_CHANNEL = "desktop:get-app-branding";
 const GET_LOCAL_ENVIRONMENT_BOOTSTRAP_CHANNEL = "desktop:get-local-environment-bootstrap";
 const GET_CLIENT_SETTINGS_CHANNEL = "desktop:get-client-settings";
 const SET_CLIENT_SETTINGS_CHANNEL = "desktop:set-client-settings";
@@ -26,6 +26,13 @@ const GET_SERVER_EXPOSURE_STATE_CHANNEL = "desktop:get-server-exposure-state";
 const SET_SERVER_EXPOSURE_MODE_CHANNEL = "desktop:set-server-exposure-mode";
 
 contextBridge.exposeInMainWorld("desktopBridge", {
+  getAppBranding: () => {
+    const result = ipcRenderer.sendSync(GET_APP_BRANDING_CHANNEL);
+    if (typeof result !== "object" || result === null) {
+      return null;
+    }
+    return result as ReturnType<DesktopBridge["getAppBranding"]>;
+  },
   getLocalEnvironmentBootstrap: () => {
     const result = ipcRenderer.sendSync(GET_LOCAL_ENVIRONMENT_BOOTSTRAP_CHANNEL);
     if (typeof result !== "object" || result === null) {
@@ -46,19 +53,7 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     ipcRenderer.invoke(REMOVE_SAVED_ENVIRONMENT_SECRET_CHANNEL, environmentId),
   getServerExposureState: () => ipcRenderer.invoke(GET_SERVER_EXPOSURE_STATE_CHANNEL),
   setServerExposureMode: (mode) => ipcRenderer.invoke(SET_SERVER_EXPOSURE_MODE_CHANNEL, mode),
-  getAmbxstTheme: () => ipcRenderer.invoke(GET_AMBXST_THEME_CHANNEL),
-  onAmbxstTheme: (listener) => {
-    const wrappedListener = (_event: Electron.IpcRendererEvent, snapshot: unknown) => {
-      if (typeof snapshot !== "object" && snapshot !== null) return;
-      listener(snapshot as Parameters<typeof listener>[0]);
-    };
-
-    ipcRenderer.on(AMBXST_THEME_CHANNEL, wrappedListener);
-    return () => {
-      ipcRenderer.removeListener(AMBXST_THEME_CHANNEL, wrappedListener);
-    };
-  },
-  pickFolder: () => ipcRenderer.invoke(PICK_FOLDER_CHANNEL),
+  pickFolder: (options) => ipcRenderer.invoke(PICK_FOLDER_CHANNEL, options),
   confirm: (message) => ipcRenderer.invoke(CONFIRM_CHANNEL, message),
   setTheme: (theme) => ipcRenderer.invoke(SET_THEME_CHANNEL, theme),
   showContextMenu: (items, position) => ipcRenderer.invoke(CONTEXT_MENU_CHANNEL, items, position),
@@ -75,6 +70,7 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     };
   },
   getUpdateState: () => ipcRenderer.invoke(UPDATE_GET_STATE_CHANNEL),
+  setUpdateChannel: (channel) => ipcRenderer.invoke(UPDATE_SET_CHANNEL_CHANNEL, channel),
   checkForUpdate: () => ipcRenderer.invoke(UPDATE_CHECK_CHANNEL),
   downloadUpdate: () => ipcRenderer.invoke(UPDATE_DOWNLOAD_CHANNEL),
   installUpdate: () => ipcRenderer.invoke(UPDATE_INSTALL_CHANNEL),

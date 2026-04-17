@@ -17,18 +17,19 @@ import type {
   GitStatusInput,
   GitStatusResult,
   GitCreateBranchResult,
-} from "./git";
+} from "./git.ts";
+import type { FilesystemBrowseInput, FilesystemBrowseResult } from "./filesystem.ts";
 import type {
   ProjectSearchEntriesInput,
   ProjectSearchEntriesResult,
   ProjectWriteFileInput,
   ProjectWriteFileResult,
-} from "./project";
+} from "./project.ts";
 import type {
   ServerConfig,
   ServerProviderUpdatedPayload,
   ServerUpsertKeybindingResult,
-} from "./server";
+} from "./server.ts";
 import type {
   TerminalClearInput,
   TerminalCloseInput,
@@ -38,26 +39,28 @@ import type {
   TerminalRestartInput,
   TerminalSessionSnapshot,
   TerminalWriteInput,
-} from "./terminal";
-import type { ServerUpsertKeybindingInput } from "./server";
+} from "./terminal.ts";
+import type { ServerUpsertKeybindingInput } from "./server.ts";
 import type {
   ClientOrchestrationCommand,
   OrchestrationGetFullThreadDiffInput,
   OrchestrationGetFullThreadDiffResult,
   OrchestrationGetTurnDiffInput,
   OrchestrationGetTurnDiffResult,
-  OrchestrationEvent,
-  OrchestrationReadModel,
-} from "./orchestration";
-import type { EnvironmentId } from "./baseSchemas";
-import { EditorId } from "./editor";
-import { ClientSettings, ServerSettings, ServerSettingsPatch } from "./settings";
+  OrchestrationShellStreamItem,
+  OrchestrationSubscribeThreadInput,
+  OrchestrationThreadStreamItem,
+} from "./orchestration.ts";
+import type { EnvironmentId } from "./baseSchemas.ts";
+import { EditorId } from "./editor.ts";
+import { ServerSettings, type ClientSettings, type ServerSettingsPatch } from "./settings.ts";
 
 export interface ContextMenuItem<T extends string = string> {
   id: T;
   label: string;
   destructive?: boolean;
   disabled?: boolean;
+  children?: readonly ContextMenuItem<T>[];
 }
 
 export type DesktopUpdateStatus =
@@ -72,6 +75,14 @@ export type DesktopUpdateStatus =
 
 export type DesktopRuntimeArch = "arm64" | "x64" | "other";
 export type DesktopTheme = "light" | "dark" | "system";
+export type DesktopUpdateChannel = "latest" | "nightly";
+export type DesktopAppStageLabel = "Alpha" | "Dev" | "Nightly";
+
+export interface DesktopAppBranding {
+  baseName: string;
+  stageLabel: DesktopAppStageLabel;
+  displayName: string;
+}
 
 export interface DesktopRuntimeInfo {
   hostArch: DesktopRuntimeArch;
@@ -82,6 +93,7 @@ export interface DesktopRuntimeInfo {
 export interface DesktopUpdateState {
   enabled: boolean;
   status: DesktopUpdateStatus;
+  channel: DesktopUpdateChannel;
   currentVersion: string;
   hostArch: DesktopRuntimeArch;
   appArch: DesktopRuntimeArch;
@@ -130,59 +142,12 @@ export interface DesktopServerExposureState {
   advertisedHost: string | null;
 }
 
-export interface DesktopAmbxstPalette {
-  background: string;
-  surface: string;
-  surfaceBright: string;
-  surfaceContainer: string;
-  surfaceContainerHigh: string;
-  surfaceContainerHighest: string;
-  surfaceContainerLow: string;
-  surfaceContainerLowest: string;
-  surfaceDim: string;
-  surfaceTint: string;
-  surfaceVariant: string;
-  outline: string;
-  outlineVariant: string;
-  primary: string;
-  primaryContainer: string;
-  secondary: string;
-  secondaryContainer: string;
-  tertiary: string;
-  tertiaryContainer: string;
-  error: string;
-  errorContainer: string;
-  blue: string;
-  green: string;
-  yellow: string;
-  overBackground: string;
-  overSurface: string;
-  overSurfaceVariant: string;
-  overPrimary: string;
-  overPrimaryContainer: string;
-  overSecondary: string;
-  overSecondaryContainer: string;
-  overTertiary: string;
-  overTertiaryContainer: string;
-  overError: string;
-  overErrorContainer: string;
-  overBlue: string;
-  overGreen: string;
-  overYellow: string;
-  shadow: string;
-  sourceColor: string;
-}
-
-export interface DesktopAmbxstThemeSnapshot {
-  mode: "light" | "dark";
-  oledMode: boolean;
-  roundness: number;
-  font: string;
-  monoFont: string;
-  colors: DesktopAmbxstPalette;
+export interface PickFolderOptions {
+  initialPath?: string | null;
 }
 
 export interface DesktopBridge {
+  getAppBranding: () => DesktopAppBranding | null;
   getLocalEnvironmentBootstrap: () => DesktopEnvironmentBootstrap | null;
   getClientSettings: () => Promise<ClientSettings | null>;
   setClientSettings: (settings: ClientSettings) => Promise<void>;
@@ -195,9 +160,7 @@ export interface DesktopBridge {
   removeSavedEnvironmentSecret: (environmentId: EnvironmentId) => Promise<void>;
   getServerExposureState: () => Promise<DesktopServerExposureState>;
   setServerExposureMode: (mode: DesktopServerExposureMode) => Promise<DesktopServerExposureState>;
-  getAmbxstTheme: () => Promise<DesktopAmbxstThemeSnapshot | null>;
-  onAmbxstTheme: (listener: (snapshot: DesktopAmbxstThemeSnapshot | null) => void) => () => void;
-  pickFolder: () => Promise<string | null>;
+  pickFolder: (options?: PickFolderOptions) => Promise<string | null>;
   confirm: (message: string) => Promise<boolean>;
   setTheme: (theme: DesktopTheme) => Promise<void>;
   showContextMenu: <T extends string>(
@@ -207,6 +170,7 @@ export interface DesktopBridge {
   openExternal: (url: string) => Promise<boolean>;
   onMenuAction: (listener: (action: string) => void) => () => void;
   getUpdateState: () => Promise<DesktopUpdateState>;
+  setUpdateChannel: (channel: DesktopUpdateChannel) => Promise<DesktopUpdateState>;
   checkForUpdate: () => Promise<DesktopUpdateCheckResult>;
   downloadUpdate: () => Promise<DesktopUpdateActionResult>;
   installUpdate: () => Promise<DesktopUpdateActionResult>;
@@ -225,7 +189,7 @@ export interface DesktopBridge {
  */
 export interface LocalApi {
   dialogs: {
-    pickFolder: () => Promise<string | null>;
+    pickFolder: (options?: PickFolderOptions) => Promise<string | null>;
     confirm: (message: string) => Promise<boolean>;
   };
   shell: {
@@ -281,6 +245,9 @@ export interface EnvironmentApi {
     searchEntries: (input: ProjectSearchEntriesInput) => Promise<ProjectSearchEntriesResult>;
     writeFile: (input: ProjectWriteFileInput) => Promise<ProjectWriteFileResult>;
   };
+  filesystem: {
+    browse: (input: FilesystemBrowseInput) => Promise<FilesystemBrowseResult>;
+  };
   git: {
     listBranches: (input: GitListBranchesInput) => Promise<GitListBranchesResult>;
     createWorktree: (input: GitCreateWorktreeInput) => Promise<GitCreateWorktreeResult>;
@@ -303,15 +270,20 @@ export interface EnvironmentApi {
     ) => () => void;
   };
   orchestration: {
-    getSnapshot: () => Promise<OrchestrationReadModel>;
     dispatchCommand: (command: ClientOrchestrationCommand) => Promise<{ sequence: number }>;
     getTurnDiff: (input: OrchestrationGetTurnDiffInput) => Promise<OrchestrationGetTurnDiffResult>;
     getFullThreadDiff: (
       input: OrchestrationGetFullThreadDiffInput,
     ) => Promise<OrchestrationGetFullThreadDiffResult>;
-    replayEvents: (fromSequenceExclusive: number) => Promise<OrchestrationEvent[]>;
-    onDomainEvent: (
-      callback: (event: OrchestrationEvent) => void,
+    subscribeShell: (
+      callback: (event: OrchestrationShellStreamItem) => void,
+      options?: {
+        onResubscribe?: () => void;
+      },
+    ) => () => void;
+    subscribeThread: (
+      input: OrchestrationSubscribeThreadInput,
+      callback: (event: OrchestrationThreadStreamItem) => void,
       options?: {
         onResubscribe?: () => void;
       },

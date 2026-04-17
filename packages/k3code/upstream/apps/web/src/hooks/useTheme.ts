@@ -1,53 +1,41 @@
-import type { DesktopAmbxstThemeSnapshot, DesktopTheme } from "@t3tools/contracts";
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 
-import {
-  applyAmbxstThemeVariables,
-  cacheAmbxstThemeSnapshot,
-  clearAmbxstThemeVariables,
-} from "../theme/ambxstTheme";
-
-export type Theme = "light" | "dark" | "system" | "ambxst";
-
+type Theme = "light" | "dark" | "system";
 type ThemeSnapshot = {
   theme: Theme;
   systemDark: boolean;
-  ambxstAvailable: boolean;
-  ambxstDark: boolean;
 };
 
 const STORAGE_KEY = "t3code:theme";
 const MEDIA_QUERY = "(prefers-color-scheme: dark)";
+const DEFAULT_THEME_SNAPSHOT: ThemeSnapshot = {
+  theme: "system",
+  systemDark: false,
+};
 const THEME_COLOR_META_NAME = "theme-color";
 const DYNAMIC_THEME_COLOR_SELECTOR = `meta[name="${THEME_COLOR_META_NAME}"][data-dynamic-theme-color="true"]`;
 
 let listeners: Array<() => void> = [];
 let lastSnapshot: ThemeSnapshot | null = null;
-let lastDesktopTheme: DesktopTheme | null = null;
-let ambxstThemeSnapshot: DesktopAmbxstThemeSnapshot | null = null;
-let ambxstThemeRequest: Promise<void> | null = null;
-let ambxstSubscribed = false;
+let lastDesktopTheme: Theme | null = null;
 
 function emitChange() {
   for (const listener of listeners) listener();
 }
 
-function getSystemDark(): boolean {
-  return window.matchMedia(MEDIA_QUERY).matches;
+function hasThemeStorage() {
+  return typeof window !== "undefined" && typeof localStorage !== "undefined";
+}
+
+function getSystemDark() {
+  return typeof window !== "undefined" && window.matchMedia(MEDIA_QUERY).matches;
 }
 
 function getStored(): Theme {
+  if (!hasThemeStorage()) return DEFAULT_THEME_SNAPSHOT.theme;
   const raw = localStorage.getItem(STORAGE_KEY);
-  if (raw === "light" || raw === "dark" || raw === "system" || raw === "ambxst") return raw;
-  return "system";
-}
-
-function hasAmbxstBridge() {
-  return Boolean(
-    window.desktopBridge &&
-    typeof window.desktopBridge.getAmbxstTheme === "function" &&
-    typeof window.desktopBridge.onAmbxstTheme === "function",
-  );
+  if (raw === "light" || raw === "dark" || raw === "system") return raw;
+  return DEFAULT_THEME_SNAPSHOT.theme;
 }
 
 function ensureThemeColorMetaTag(): HTMLMetaElement {
@@ -99,83 +87,15 @@ export function syncBrowserChromeTheme() {
   ensureThemeColorMetaTag().setAttribute("content", backgroundColor);
 }
 
-function setAmbxstThemeSnapshot(snapshot: DesktopAmbxstThemeSnapshot | null): void {
-  ambxstThemeSnapshot = snapshot;
-  cacheAmbxstThemeSnapshot(snapshot);
-  if (getStored() === "ambxst") {
-    applyTheme("ambxst", true);
-  }
-  emitChange();
-}
-
-function requestAmbxstTheme(): void {
-  if (!hasAmbxstBridge() || ambxstThemeRequest) {
-    return;
-  }
-
-  ambxstThemeRequest = window
-    .desktopBridge!.getAmbxstTheme()
-    .then((snapshot) => {
-      setAmbxstThemeSnapshot(snapshot);
-    })
-    .catch(() => {
-      setAmbxstThemeSnapshot(null);
-    })
-    .finally(() => {
-      ambxstThemeRequest = null;
-    });
-}
-
-function ensureAmbxstSubscription(): void {
-  if (!hasAmbxstBridge() || ambxstSubscribed) {
-    return;
-  }
-
-  ambxstSubscribed = true;
-  window.desktopBridge!.onAmbxstTheme((snapshot) => {
-    setAmbxstThemeSnapshot(snapshot);
-  });
-  requestAmbxstTheme();
-}
-
-function resolveIsDark(theme: Theme): boolean {
-  if (theme === "light") return false;
-  if (theme === "dark") return true;
-  if (theme === "ambxst") {
-    return ambxstThemeSnapshot?.mode === "dark";
-  }
-  return getSystemDark();
-}
-
-function resolveDesktopTheme(theme: Theme): DesktopTheme {
-  if (theme === "ambxst") {
-    return ambxstThemeSnapshot?.mode ?? "system";
-  }
-  return theme;
-}
-
 function applyTheme(theme: Theme, suppressTransitions = false) {
-  if (typeof document === "undefined") return;
-
-  if (theme === "ambxst") {
-    ensureAmbxstSubscription();
-    if (ambxstThemeSnapshot) {
-      applyAmbxstThemeVariables(document.documentElement, ambxstThemeSnapshot);
-    } else {
-      clearAmbxstThemeVariables(document.documentElement);
-    }
-  } else {
-    clearAmbxstThemeVariables(document.documentElement);
-  }
-
+  if (typeof document === "undefined" || typeof window === "undefined") return;
   if (suppressTransitions) {
     document.documentElement.classList.add("no-transitions");
   }
-
-  document.documentElement.classList.toggle("dark", resolveIsDark(theme));
+  const isDark = theme === "dark" || (theme === "system" && getSystemDark());
+  document.documentElement.classList.toggle("dark", isDark);
   syncBrowserChromeTheme();
   syncDesktopTheme(theme);
-
   if (suppressTransitions) {
     // Force a reflow so the no-transitions class takes effect before removal
     // oxlint-disable-next-line no-unused-expressions
@@ -187,49 +107,47 @@ function applyTheme(theme: Theme, suppressTransitions = false) {
 }
 
 function syncDesktopTheme(theme: Theme) {
+  if (typeof window === "undefined") return;
   const bridge = window.desktopBridge;
-  const desktopTheme = resolveDesktopTheme(theme);
-  if (!bridge || lastDesktopTheme === desktopTheme) {
+  if (!bridge || lastDesktopTheme === theme) {
     return;
   }
 
-  lastDesktopTheme = desktopTheme;
-  void bridge.setTheme(desktopTheme).catch(() => {
-    if (lastDesktopTheme === desktopTheme) {
+  lastDesktopTheme = theme;
+  void bridge.setTheme(theme).catch(() => {
+    if (lastDesktopTheme === theme) {
       lastDesktopTheme = null;
     }
   });
 }
 
-ensureAmbxstSubscription();
-
 // Apply immediately on module load to prevent flash
-applyTheme(getStored());
+if (typeof document !== "undefined" && hasThemeStorage()) {
+  applyTheme(getStored());
+}
 
 function getSnapshot(): ThemeSnapshot {
+  if (!hasThemeStorage()) return DEFAULT_THEME_SNAPSHOT;
   const theme = getStored();
   const systemDark = theme === "system" ? getSystemDark() : false;
-  const ambxstDark = ambxstThemeSnapshot?.mode === "dark";
-  const ambxstAvailable = ambxstThemeSnapshot !== null;
 
-  if (
-    lastSnapshot &&
-    lastSnapshot.theme === theme &&
-    lastSnapshot.systemDark === systemDark &&
-    lastSnapshot.ambxstDark === ambxstDark &&
-    lastSnapshot.ambxstAvailable === ambxstAvailable
-  ) {
+  if (lastSnapshot && lastSnapshot.theme === theme && lastSnapshot.systemDark === systemDark) {
     return lastSnapshot;
   }
 
-  lastSnapshot = { theme, systemDark, ambxstDark, ambxstAvailable };
+  lastSnapshot = { theme, systemDark };
   return lastSnapshot;
 }
 
-function subscribe(listener: () => void): () => void {
-  listeners.push(listener);
-  ensureAmbxstSubscription();
+function getServerSnapshot() {
+  return DEFAULT_THEME_SNAPSHOT;
+}
 
+function subscribe(listener: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  listeners.push(listener);
+
+  // Listen for system preference changes
   const mq = window.matchMedia(MEDIA_QUERY);
   const handleChange = () => {
     if (getStored() === "system") applyTheme("system", true);
@@ -237,13 +155,10 @@ function subscribe(listener: () => void): () => void {
   };
   mq.addEventListener("change", handleChange);
 
+  // Listen for storage changes from other tabs
   const handleStorage = (e: StorageEvent) => {
     if (e.key === STORAGE_KEY) {
-      const nextTheme = getStored();
-      if (nextTheme === "ambxst") {
-        requestAmbxstTheme();
-      }
-      applyTheme(nextTheme, true);
+      applyTheme(getStored(), true);
       emitChange();
     }
   };
@@ -257,32 +172,23 @@ function subscribe(listener: () => void): () => void {
 }
 
 export function useTheme() {
-  const snapshot = useSyncExternalStore(subscribe, getSnapshot);
+  const snapshot = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   const theme = snapshot.theme;
 
   const resolvedTheme: "light" | "dark" =
-    theme === "system"
-      ? snapshot.systemDark
-        ? "dark"
-        : "light"
-      : theme === "ambxst"
-        ? snapshot.ambxstDark
-          ? "dark"
-          : "light"
-        : theme;
+    theme === "system" ? (snapshot.systemDark ? "dark" : "light") : theme;
 
   const setTheme = useCallback((next: Theme) => {
+    if (!hasThemeStorage()) return;
     localStorage.setItem(STORAGE_KEY, next);
-    if (next === "ambxst") {
-      requestAmbxstTheme();
-    }
     applyTheme(next, true);
     emitChange();
   }, []);
 
+  // Keep DOM in sync on mount/change
   useEffect(() => {
     applyTheme(theme);
   }, [theme]);
 
-  return { theme, setTheme, resolvedTheme, ambxstAvailable: snapshot.ambxstAvailable } as const;
+  return { theme, setTheme, resolvedTheme } as const;
 }

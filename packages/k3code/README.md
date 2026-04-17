@@ -6,8 +6,8 @@ Current upstream snapshot:
 
 - fork: `IGN-Styly/t3code`
 - ref: `main`
-- commit: `06f940e8a522bd24c7bd4bc67b16c31ce6264344`
-- describe: `v0.0.16-7-g06f940e8`
+- commit: `52a60678026549f8db66165e254c49eecfb69920`
+- describe: `52a6067`
 
 Notes:
 

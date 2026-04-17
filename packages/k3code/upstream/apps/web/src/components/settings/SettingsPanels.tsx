@@ -11,9 +11,8 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
 import {
-  EDITORS,
   PROVIDER_DISPLAY_NAMES,
-  type EditorId,
+  type DesktopUpdateChannel,
   type ScopedThreadRef,
   type ProviderKind,
   type ServerProvider,
@@ -31,15 +30,11 @@ import {
   isDesktopUpdateButtonDisabled,
   resolveDesktopUpdateButtonAction,
 } from "../../components/desktopUpdate.logic";
-import { getEditorOption, resolveEditorOptions } from "../../editorOptions";
 import { ProviderModelPicker } from "../chat/ProviderModelPicker";
 import { TraitsPicker } from "../chat/TraitsPicker";
-import {
-  clearLegacyPreferredEditorPreference,
-  openInPreferredEditor,
-} from "../../editorPreferences";
+import { resolveAndPersistPreferredEditor } from "../../editorPreferences";
 import { isElectron } from "../../env";
-import { type Theme, useTheme } from "../../hooks/useTheme";
+import { useTheme } from "../../hooks/useTheme";
 import { useSettings, useUpdateSettings } from "../../hooks/useSettings";
 import { useThreadActions } from "../../hooks/useThreadActions";
 import {
@@ -97,11 +92,6 @@ const THEME_OPTIONS = [
     label: "Dark",
   },
 ] as const;
-
-const AMBXST_THEME_OPTION = {
-  value: "ambxst",
-  label: "Ambxst",
-} as const satisfies { value: Theme; label: string };
 
 const TIMESTAMP_FORMAT_LABELS = {
   locale: "System default",
@@ -243,8 +233,42 @@ function AboutVersionTitle() {
 function AboutVersionSection() {
   const queryClient = useQueryClient();
   const updateStateQuery = useDesktopUpdateState();
+  const [isChangingUpdateChannel, setIsChangingUpdateChannel] = useState(false);
 
   const updateState = updateStateQuery.data ?? null;
+  const hasDesktopBridge = typeof window !== "undefined" && Boolean(window.desktopBridge);
+  const selectedUpdateChannel = updateState?.channel ?? "latest";
+
+  const handleUpdateChannelChange = useCallback(
+    (channel: DesktopUpdateChannel) => {
+      const bridge = window.desktopBridge;
+      if (
+        !bridge ||
+        typeof bridge.setUpdateChannel !== "function" ||
+        channel === selectedUpdateChannel
+      ) {
+        return;
+      }
+
+      setIsChangingUpdateChannel(true);
+      void bridge
+        .setUpdateChannel(channel)
+        .then((state) => {
+          setDesktopUpdateStateQueryData(queryClient, state);
+        })
+        .catch((error: unknown) => {
+          toastManager.add({
+            type: "error",
+            title: "Could not change update track",
+            description: error instanceof Error ? error.message : "Update track change failed.",
+          });
+        })
+        .finally(() => {
+          setIsChangingUpdateChannel(false);
+        });
+    },
+    [queryClient, selectedUpdateChannel],
+  );
 
   const handleButtonClick = useCallback(() => {
     const bridge = window.desktopBridge;
@@ -334,27 +358,59 @@ function AboutVersionSection() {
       : "Current version of the application.";
 
   return (
-    <SettingsRow
-      title={<AboutVersionTitle />}
-      description={description}
-      control={
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                size="xs"
-                variant={action === "install" ? "default" : "outline"}
-                disabled={buttonDisabled}
-                onClick={handleButtonClick}
-              >
-                {buttonLabel}
-              </Button>
-            }
-          />
-          {buttonTooltip ? <TooltipPopup>{buttonTooltip}</TooltipPopup> : null}
-        </Tooltip>
-      }
-    />
+    <>
+      <SettingsRow
+        title={<AboutVersionTitle />}
+        description={description}
+        control={
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  size="xs"
+                  variant={action === "install" ? "default" : "outline"}
+                  disabled={buttonDisabled}
+                  onClick={handleButtonClick}
+                >
+                  {buttonLabel}
+                </Button>
+              }
+            />
+            {buttonTooltip ? <TooltipPopup>{buttonTooltip}</TooltipPopup> : null}
+          </Tooltip>
+        }
+      />
+      <SettingsRow
+        title="Update track"
+        description="Stable follows full releases. Nightly follows the nightly desktop channel and can switch back to stable immediately."
+        control={
+          <Select
+            value={selectedUpdateChannel}
+            onValueChange={(value) => {
+              handleUpdateChannelChange(value as DesktopUpdateChannel);
+            }}
+          >
+            <SelectTrigger
+              className="w-full sm:w-40"
+              aria-label="Update track"
+              disabled={!hasDesktopBridge || isChangingUpdateChannel}
+            >
+              <SelectValue>
+                {selectedUpdateChannel === "nightly" ? "Nightly" : "Stable"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectPopup align="end" alignItemWithTrigger={false}>
+              <SelectItem hideIndicator value="latest">
+                Stable
+              </SelectItem>
+              <SelectItem hideIndicator value="nightly">
+                Nightly
+              </SelectItem>
+            </SelectPopup>
+          </Select>
+        }
+      />
+    </>
   );
 }
 
@@ -379,7 +435,6 @@ export function useSettingsRestore(onRestored?: () => void) {
       ...(settings.timestampFormat !== DEFAULT_UNIFIED_SETTINGS.timestampFormat
         ? ["Time format"]
         : []),
-      ...(settings.preferredEditor !== DEFAULT_UNIFIED_SETTINGS.preferredEditor ? ["Editor"] : []),
       ...(settings.diffWordWrap !== DEFAULT_UNIFIED_SETTINGS.diffWordWrap
         ? ["Diff line wrapping"]
         : []),
@@ -388,6 +443,9 @@ export function useSettingsRestore(onRestored?: () => void) {
         : []),
       ...(settings.defaultThreadEnvMode !== DEFAULT_UNIFIED_SETTINGS.defaultThreadEnvMode
         ? ["New thread mode"]
+        : []),
+      ...(settings.addProjectBaseDirectory !== DEFAULT_UNIFIED_SETTINGS.addProjectBaseDirectory
+        ? ["Add project base directory"]
         : []),
       ...(settings.confirmThreadArchive !== DEFAULT_UNIFIED_SETTINGS.confirmThreadArchive
         ? ["Archive confirmation"]
@@ -403,10 +461,10 @@ export function useSettingsRestore(onRestored?: () => void) {
       isGitWritingModelDirty,
       settings.confirmThreadArchive,
       settings.confirmThreadDelete,
+      settings.addProjectBaseDirectory,
       settings.defaultThreadEnvMode,
       settings.diffWordWrap,
       settings.enableAssistantStreaming,
-      settings.preferredEditor,
       settings.timestampFormat,
       theme,
     ],
@@ -422,7 +480,6 @@ export function useSettingsRestore(onRestored?: () => void) {
     );
     if (!confirmed) return;
 
-    clearLegacyPreferredEditorPreference();
     setTheme("system");
     resetSettings();
     onRestored?.();
@@ -435,7 +492,7 @@ export function useSettingsRestore(onRestored?: () => void) {
 }
 
 export function GeneralSettingsPanel() {
-  const { theme, setTheme, ambxstAvailable } = useTheme();
+  const { theme, setTheme } = useTheme();
   const settings = useSettings();
   const { updateSettings } = useUpdateSettings();
   const [openingPathByTarget, setOpeningPathByTarget] = useState({
@@ -454,7 +511,8 @@ export function GeneralSettingsPanel() {
     claudeAgent: Boolean(
       settings.providers.claudeAgent.binaryPath !==
         DEFAULT_UNIFIED_SETTINGS.providers.claudeAgent.binaryPath ||
-      settings.providers.claudeAgent.customModels.length > 0,
+      settings.providers.claudeAgent.customModels.length > 0 ||
+      settings.providers.claudeAgent.launchArgs !== "",
     ),
   });
   const [customModelInputByProvider, setCustomModelInputByProvider] = useState<
@@ -503,7 +561,6 @@ export function GeneralSettingsPanel() {
   })();
 
   const textGenerationModelSelection = resolveAppModelSelectionState(settings, serverProviders);
-  const editorPlatform = typeof navigator === "undefined" ? "" : navigator.platform;
   const textGenProvider = textGenerationModelSelection.provider;
   const textGenModel = textGenerationModelSelection.model;
   const textGenModelOptions = textGenerationModelSelection.options;
@@ -518,13 +575,24 @@ export function GeneralSettingsPanel() {
     DEFAULT_UNIFIED_SETTINGS.textGenerationModelSelection ?? null,
   );
 
-  const openPathInPreferredEditor = useCallback(
+  const openInPreferredEditor = useCallback(
     (target: "keybindings" | "logsDirectory", path: string | null, failureMessage: string) => {
       if (!path) return;
       setOpenPathErrorByTarget((existing) => ({ ...existing, [target]: null }));
       setOpeningPathByTarget((existing) => ({ ...existing, [target]: true }));
 
-      void openInPreferredEditor(ensureLocalApi(), path)
+      const editor = resolveAndPersistPreferredEditor(availableEditors ?? []);
+      if (!editor) {
+        setOpenPathErrorByTarget((existing) => ({
+          ...existing,
+          [target]: "No available editors found.",
+        }));
+        setOpeningPathByTarget((existing) => ({ ...existing, [target]: false }));
+        return;
+      }
+
+      void ensureLocalApi()
+        .shell.openInEditor(path, editor)
         .catch((error) => {
           setOpenPathErrorByTarget((existing) => ({
             ...existing,
@@ -535,20 +603,16 @@ export function GeneralSettingsPanel() {
           setOpeningPathByTarget((existing) => ({ ...existing, [target]: false }));
         });
     },
-    [],
+    [availableEditors],
   );
 
   const openKeybindingsFile = useCallback(() => {
-    openPathInPreferredEditor(
-      "keybindings",
-      keybindingsConfigPath,
-      "Unable to open keybindings file.",
-    );
-  }, [keybindingsConfigPath, openPathInPreferredEditor]);
+    openInPreferredEditor("keybindings", keybindingsConfigPath, "Unable to open keybindings file.");
+  }, [keybindingsConfigPath, openInPreferredEditor]);
 
   const openLogsDirectory = useCallback(() => {
-    openPathInPreferredEditor("logsDirectory", logsDirectoryPath, "Unable to open logs folder.");
-  }, [logsDirectoryPath, openPathInPreferredEditor]);
+    openInPreferredEditor("logsDirectory", logsDirectoryPath, "Unable to open logs folder.");
+  }, [logsDirectoryPath, openInPreferredEditor]);
 
   const openKeybindingsError = openPathErrorByTarget.keybindings ?? null;
   const openDiagnosticsError = openPathErrorByTarget.logsDirectory ?? null;
@@ -690,66 +754,12 @@ export function GeneralSettingsPanel() {
         )
       : null;
 
-  const themeOptions = useMemo(
-    () =>
-      ambxstAvailable || theme === "ambxst"
-        ? [...THEME_OPTIONS, AMBXST_THEME_OPTION]
-        : THEME_OPTIONS,
-    [ambxstAvailable, theme],
-  );
-  const preferredEditorOptions = useMemo(() => {
-    const options = resolveEditorOptions(editorPlatform, availableEditors).map((option) => ({
-      value: option.value,
-      label: option.label,
-      Icon: option.Icon,
-      unavailable: false,
-    }));
-
-    if (settings.preferredEditor && !availableEditors.includes(settings.preferredEditor)) {
-      const unavailableOption = getEditorOption(editorPlatform, settings.preferredEditor);
-      return [
-        {
-          value: unavailableOption.value,
-          label: `${unavailableOption.label} (unavailable)`,
-          Icon: unavailableOption.Icon,
-          unavailable: true,
-        },
-        ...options,
-      ];
-    }
-
-    return options;
-  }, [availableEditors, editorPlatform, settings.preferredEditor]);
-  const preferredEditorDescription = (() => {
-    if (availableEditors.length === 0) {
-      return "Choose which app open actions use across T3 Code. No supported editors detected.";
-    }
-    if (settings.preferredEditor && !availableEditors.includes(settings.preferredEditor)) {
-      const storedEditorLabel = getEditorOption(editorPlatform, settings.preferredEditor).label;
-      return `${storedEditorLabel} is unavailable right now. Choose another editor to re-enable open actions.`;
-    }
-    if (!settings.preferredEditor) {
-      return "Choose which app open actions use across T3 Code.";
-    }
-    return `${getEditorOption(editorPlatform, settings.preferredEditor).label} is selected for opening workspaces, logs, and config files.`;
-  })();
-  const selectedEditorValue = settings.preferredEditor ?? "";
-  const selectedEditorOption =
-    (selectedEditorValue
-      ? (preferredEditorOptions.find((option) => option.value === selectedEditorValue) ??
-        getEditorOption(editorPlatform, selectedEditorValue as EditorId))
-      : null) ?? null;
-
   return (
     <SettingsPageContainer>
       <SettingsSection title="General">
         <SettingsRow
           title="Theme"
-          description={
-            ambxstAvailable
-              ? "Choose how T3 Code looks across the app, or follow your current Ambxst palette."
-              : "Choose how T3 Code looks across the app."
-          }
+          description="Choose how T3 Code looks across the app."
           resetAction={
             theme !== "system" ? (
               <SettingResetButton label="theme" onClick={() => setTheme("system")} />
@@ -759,77 +769,20 @@ export function GeneralSettingsPanel() {
             <Select
               value={theme}
               onValueChange={(value) => {
-                if (
-                  value === "system" ||
-                  value === "light" ||
-                  value === "dark" ||
-                  value === "ambxst"
-                ) {
+                if (value === "system" || value === "light" || value === "dark") {
                   setTheme(value);
                 }
               }}
             >
               <SelectTrigger className="w-full sm:w-40" aria-label="Theme preference">
                 <SelectValue>
-                  {themeOptions.find((option) => option.value === theme)?.label ?? "System"}
+                  {THEME_OPTIONS.find((option) => option.value === theme)?.label ?? "System"}
                 </SelectValue>
               </SelectTrigger>
               <SelectPopup align="end" alignItemWithTrigger={false}>
-                {themeOptions.map((option) => (
+                {THEME_OPTIONS.map((option) => (
                   <SelectItem hideIndicator key={option.value} value={option.value}>
                     {option.label}
-                  </SelectItem>
-                ))}
-              </SelectPopup>
-            </Select>
-          }
-        />
-
-        <SettingsRow
-          title="Editor"
-          description={preferredEditorDescription}
-          control={
-            <Select
-              value={selectedEditorValue}
-              onValueChange={(value) => {
-                if (EDITORS.some((editor) => editor.id === value)) {
-                  clearLegacyPreferredEditorPreference();
-                  updateSettings({ preferredEditor: value as EditorId });
-                }
-              }}
-            >
-              <SelectTrigger
-                className="w-full sm:w-48"
-                aria-label="Preferred editor"
-                disabled={availableEditors.length === 0}
-              >
-                <SelectValue>
-                  <span className="inline-flex items-center gap-2">
-                    {selectedEditorOption ? (
-                      <selectedEditorOption.Icon
-                        aria-hidden="true"
-                        className="size-4 text-muted-foreground"
-                      />
-                    ) : null}
-                    <span>
-                      {selectedEditorOption?.label ??
-                        (availableEditors.length > 0 ? "Choose editor" : "No editors found")}
-                    </span>
-                  </span>
-                </SelectValue>
-              </SelectTrigger>
-              <SelectPopup align="end" alignItemWithTrigger={false}>
-                {preferredEditorOptions.map((option) => (
-                  <SelectItem
-                    hideIndicator
-                    key={option.value}
-                    value={option.value}
-                    disabled={option.unavailable}
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      <option.Icon aria-hidden="true" className="size-4 text-muted-foreground" />
-                      <span>{option.label}</span>
-                    </span>
                   </SelectItem>
                 ))}
               </SelectPopup>
@@ -968,6 +921,34 @@ export function GeneralSettingsPanel() {
                 </SelectItem>
               </SelectPopup>
             </Select>
+          }
+        />
+
+        <SettingsRow
+          title="Add project starts in"
+          description='Leave empty to use "~/" when the Add Project browser opens.'
+          resetAction={
+            settings.addProjectBaseDirectory !==
+            DEFAULT_UNIFIED_SETTINGS.addProjectBaseDirectory ? (
+              <SettingResetButton
+                label="add project base directory"
+                onClick={() =>
+                  updateSettings({
+                    addProjectBaseDirectory: DEFAULT_UNIFIED_SETTINGS.addProjectBaseDirectory,
+                  })
+                }
+              />
+            ) : null
+          }
+          control={
+            <Input
+              className="w-full sm:w-72"
+              value={settings.addProjectBaseDirectory}
+              onChange={(event) => updateSettings({ addProjectBaseDirectory: event.target.value })}
+              placeholder="~/"
+              spellCheck={false}
+              aria-label="Add project base directory"
+            />
           }
         />
 
@@ -1294,6 +1275,37 @@ export function GeneralSettingsPanel() {
                               {providerCard.homeDescription}
                             </span>
                           ) : null}
+                        </label>
+                      </div>
+                    ) : null}
+
+                    {providerCard.provider === "claudeAgent" ? (
+                      <div className="border-t border-border/60 px-4 py-3 sm:px-5">
+                        <label htmlFor="provider-install-claudeAgent-launch-args" className="block">
+                          <span className="text-xs font-medium text-foreground">
+                            Launch arguments
+                          </span>
+                          <Input
+                            id="provider-install-claudeAgent-launch-args"
+                            className="mt-1.5"
+                            value={settings.providers.claudeAgent.launchArgs}
+                            onChange={(event) =>
+                              updateSettings({
+                                providers: {
+                                  ...settings.providers,
+                                  claudeAgent: {
+                                    ...settings.providers.claudeAgent,
+                                    launchArgs: event.target.value,
+                                  },
+                                },
+                              })
+                            }
+                            placeholder="e.g. --chrome"
+                            spellCheck={false}
+                          />
+                          <span className="mt-1 block text-xs text-muted-foreground">
+                            Additional CLI arguments passed to Claude Code on session start.
+                          </span>
                         </label>
                       </div>
                     ) : null}

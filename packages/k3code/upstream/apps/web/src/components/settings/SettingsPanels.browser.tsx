@@ -4,10 +4,10 @@ import {
   type AuthAccessStreamEvent,
   type AuthAccessSnapshot,
   AuthSessionId,
-  DEFAULT_CLIENT_SETTINGS,
   DEFAULT_SERVER_SETTINGS,
   EnvironmentId,
   type DesktopBridge,
+  type DesktopUpdateChannel,
   type DesktopUpdateState,
   type LocalApi,
   type ServerConfig,
@@ -259,10 +259,12 @@ function makeClientSession(input: {
 const createDesktopBridgeStub = (overrides?: {
   readonly serverExposureState?: Awaited<ReturnType<DesktopBridge["getServerExposureState"]>>;
   readonly setServerExposureMode?: DesktopBridge["setServerExposureMode"];
+  readonly setUpdateChannel?: DesktopBridge["setUpdateChannel"];
 }): DesktopBridge => {
   const idleUpdateState: DesktopUpdateState = {
     enabled: false,
     status: "idle",
+    channel: "latest",
     currentVersion: "0.0.0-test",
     hostArch: "arm64",
     appArch: "arm64",
@@ -277,6 +279,7 @@ const createDesktopBridgeStub = (overrides?: {
   };
 
   return {
+    getAppBranding: vi.fn().mockReturnValue(null),
     getLocalEnvironmentBootstrap: () => ({
       label: "Local environment",
       httpBaseUrl: "http://127.0.0.1:3773",
@@ -304,8 +307,6 @@ const createDesktopBridgeStub = (overrides?: {
         endpointUrl: mode === "network-accessible" ? "http://192.168.1.44:3773" : null,
         advertisedHost: mode === "network-accessible" ? "192.168.1.44" : null,
       })),
-    getAmbxstTheme: vi.fn().mockResolvedValue(null),
-    onAmbxstTheme: () => () => {},
     pickFolder: vi.fn().mockResolvedValue(null),
     confirm: vi.fn().mockResolvedValue(false),
     setTheme: vi.fn().mockResolvedValue(undefined),
@@ -313,6 +314,12 @@ const createDesktopBridgeStub = (overrides?: {
     openExternal: vi.fn().mockResolvedValue(true),
     onMenuAction: () => () => {},
     getUpdateState: vi.fn().mockResolvedValue(idleUpdateState),
+    setUpdateChannel:
+      overrides?.setUpdateChannel ??
+      vi.fn().mockImplementation(async (channel: DesktopUpdateChannel) => ({
+        ...idleUpdateState,
+        channel,
+      })),
     checkForUpdate: vi.fn().mockResolvedValue({ checked: false, state: idleUpdateState }),
     downloadUpdate: vi
       .fn()
@@ -444,22 +451,6 @@ describe("GeneralSettingsPanel observability", () => {
         ),
       )
       .toBeInTheDocument();
-  });
-
-  it("shows editor icons in the editor preference control", async () => {
-    setServerConfigSnapshot({
-      ...createBaseServerConfig(),
-      availableEditors: ["cursor", "zed"],
-    });
-
-    mounted = await render(
-      <AppAtomRegistryProvider>
-        <GeneralSettingsPanel />
-      </AppAtomRegistryProvider>,
-    );
-
-    await expect.element(page.getByText("Editor")).toBeInTheDocument();
-    expect(document.querySelector('[aria-label="Preferred editor"] svg')).not.toBeNull();
   });
 
   it("creates and shows a pairing link when network access is enabled", async () => {
@@ -691,26 +682,13 @@ describe("GeneralSettingsPanel observability", () => {
 
   it("opens the logs folder in the preferred editor", async () => {
     const openInEditor = vi.fn<LocalApi["shell"]["openInEditor"]>().mockResolvedValue(undefined);
-    const serverConfig = {
-      ...createBaseServerConfig(),
-      availableEditors: ["cursor", "zed"],
-    } satisfies ServerConfig;
     window.nativeApi = {
       shell: {
         openInEditor,
       },
-      persistence: {
-        getClientSettings: vi.fn().mockResolvedValue({
-          ...DEFAULT_CLIENT_SETTINGS,
-          preferredEditor: "zed",
-        }),
-      },
-      server: {
-        getConfig: vi.fn().mockResolvedValue(serverConfig),
-      },
     } as unknown as LocalApi;
 
-    setServerConfigSnapshot(serverConfig);
+    setServerConfigSnapshot(createBaseServerConfig());
 
     mounted = await render(
       <AppAtomRegistryProvider>
@@ -721,6 +699,6 @@ describe("GeneralSettingsPanel observability", () => {
     const openLogsButton = page.getByText("Open logs folder");
     await openLogsButton.click();
 
-    expect(openInEditor).toHaveBeenCalledWith("/repo/project/.t3/logs", "zed");
+    expect(openInEditor).toHaveBeenCalledWith("/repo/project/.t3/logs", "cursor");
   });
 });

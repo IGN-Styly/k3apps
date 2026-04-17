@@ -18,7 +18,6 @@ import {
   TurnId,
 } from "@t3tools/contracts";
 import { it, assert, vi } from "@effect/vitest";
-import { assertFailure } from "@effect/vitest/utils";
 
 import { Effect, Fiber, Layer, Metric, Option, PubSub, Ref, Stream } from "effect";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
@@ -574,20 +573,31 @@ routing.layer("ProviderServiceLive routing", (it) => {
       });
 
       yield* provider.stopSession({ threadId: session.threadId });
-      const sendAfterStop = yield* Effect.result(
-        provider.sendTurn({
-          threadId: session.threadId,
-          input: "after-stop",
-          attachments: [],
-        }),
-      );
-      assertFailure(
-        sendAfterStop,
-        new ProviderValidationError({
-          operation: "ProviderService.sendTurn",
-          issue: `Cannot route thread '${session.threadId}' because no persisted provider binding exists.`,
-        }),
-      );
+      routing.codex.startSession.mockClear();
+      routing.codex.sendTurn.mockClear();
+
+      yield* provider.sendTurn({
+        threadId: session.threadId,
+        input: "after-stop",
+        attachments: [],
+      });
+
+      assert.equal(routing.codex.startSession.mock.calls.length, 1);
+      const resumedStartInput = routing.codex.startSession.mock.calls[0]?.[0];
+      assert.equal(typeof resumedStartInput === "object" && resumedStartInput !== null, true);
+      if (resumedStartInput && typeof resumedStartInput === "object") {
+        const startPayload = resumedStartInput as {
+          provider?: string;
+          cwd?: string;
+          resumeCursor?: unknown;
+          threadId?: string;
+        };
+        assert.equal(startPayload.provider, "codex");
+        assert.equal(startPayload.cwd, "/tmp/project");
+        assert.deepEqual(startPayload.resumeCursor, session.resumeCursor);
+        assert.equal(startPayload.threadId, session.threadId);
+      }
+      assert.equal(routing.codex.sendTurn.mock.calls.length, 1);
     }),
   );
 
@@ -631,6 +641,57 @@ routing.layer("ProviderServiceLive routing", (it) => {
     }),
   );
 
+  it.effect("preserves the persisted binding when stopping a session", () =>
+    Effect.gen(function* () {
+      const provider = yield* ProviderService;
+      const runtimeRepository = yield* ProviderSessionRuntimeRepository;
+
+      const initial = yield* provider.startSession(asThreadId("thread-reap-preserve"), {
+        provider: "codex",
+        threadId: asThreadId("thread-reap-preserve"),
+        cwd: "/tmp/project-reap-preserve",
+        runtimeMode: "full-access",
+      });
+
+      yield* provider.stopSession({ threadId: initial.threadId });
+
+      const persistedAfterStop = yield* runtimeRepository.getByThreadId({
+        threadId: initial.threadId,
+      });
+      assert.equal(Option.isSome(persistedAfterStop), true);
+      if (Option.isSome(persistedAfterStop)) {
+        assert.equal(persistedAfterStop.value.status, "stopped");
+        assert.deepEqual(persistedAfterStop.value.resumeCursor, initial.resumeCursor);
+      }
+
+      routing.codex.startSession.mockClear();
+      routing.codex.sendTurn.mockClear();
+
+      yield* provider.sendTurn({
+        threadId: initial.threadId,
+        input: "resume after reap",
+        attachments: [],
+      });
+
+      assert.equal(routing.codex.startSession.mock.calls.length, 1);
+      const resumedStartInput = routing.codex.startSession.mock.calls[0]?.[0];
+      assert.equal(typeof resumedStartInput === "object" && resumedStartInput !== null, true);
+      if (resumedStartInput && typeof resumedStartInput === "object") {
+        const startPayload = resumedStartInput as {
+          provider?: string;
+          cwd?: string;
+          resumeCursor?: unknown;
+          threadId?: string;
+        };
+        assert.equal(startPayload.provider, "codex");
+        assert.equal(startPayload.cwd, "/tmp/project-reap-preserve");
+        assert.deepEqual(startPayload.resumeCursor, initial.resumeCursor);
+        assert.equal(startPayload.threadId, initial.threadId);
+      }
+      assert.equal(routing.codex.sendTurn.mock.calls.length, 1);
+    }),
+  );
+
   it.effect("routes explicit claudeAgent provider session starts to the claude adapter", () =>
     Effect.gen(function* () {
       const provider = yield* ProviderService;
@@ -651,6 +712,43 @@ routing.layer("ProviderServiceLive routing", (it) => {
         assert.equal(startPayload.provider, "claudeAgent");
         assert.equal(startPayload.cwd, "/tmp/project-claude");
       }
+    }),
+  );
+
+  it.effect("stops stale sessions in other providers after a successful replacement start", () =>
+    Effect.gen(function* () {
+      const provider = yield* ProviderService;
+      const threadId = asThreadId("thread-provider-replacement");
+
+      const codexSession = yield* provider.startSession(threadId, {
+        provider: "codex",
+        threadId,
+        cwd: "/tmp/project-provider-replacement",
+        runtimeMode: "full-access",
+      });
+
+      routing.codex.stopSession.mockClear();
+      routing.claude.stopSession.mockClear();
+
+      const claudeSession = yield* provider.startSession(threadId, {
+        provider: "claudeAgent",
+        threadId,
+        cwd: "/tmp/project-provider-replacement",
+        runtimeMode: "full-access",
+      });
+
+      assert.equal(codexSession.provider, "codex");
+      assert.equal(claudeSession.provider, "claudeAgent");
+      assert.deepEqual(routing.codex.stopSession.mock.calls, [[threadId]]);
+      assert.equal(routing.claude.stopSession.mock.calls.length, 0);
+
+      const sessions = yield* provider.listSessions();
+      assert.deepEqual(
+        sessions
+          .filter((session) => session.threadId === threadId)
+          .map((session) => session.provider),
+        ["claudeAgent"],
+      );
     }),
   );
 
