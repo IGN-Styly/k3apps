@@ -2,7 +2,7 @@
 
 pkgname=k3code
 pkgver=0.0.22
-pkgrel=2
+pkgrel=3
 pkgdesc='k3Code desktop app, a vendored t3code fork'
 url='https://t3.codes'
 arch=('x86_64')
@@ -136,10 +136,10 @@ else
   extra_flags+=(--ozone-platform-hint=auto)
 fi
 
-exec "$appdir/k3code" --no-sandbox "${extra_flags[@]}" "$@"
+exec "$appdir/t3code" --no-sandbox "${extra_flags[@]}" "$@"
 EOF
 
-  ln -s k3code "$pkgdir/usr/bin/k3-code-desktop"
+  ln -s k3code "$pkgdit3usr/bin/t3-code-desktop"
 
   install -Dm644 "$srcdir/upstream/assets/prod/black-universal-1024.png" \
     "$pkgdir/usr/share/icons/hicolor/1024x1024/apps/k3-code-desktop.png"
@@ -153,7 +153,7 @@ EOF
 [Desktop Entry]
 Name=k3 Code
 Comment=k3 Code desktop build
-Exec=t3code %U
+Exec=k3code %U
 Terminal=false
 Type=Application
 Icon=k3code
