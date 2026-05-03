@@ -153,7 +153,7 @@ EOF
 [Desktop Entry]
 Name=k3 Code
 Comment=k3 Code desktop build
-Exec=k3code %U
+Exec=t3code %U
 Terminal=false
 Type=Application
 Icon=k3code
