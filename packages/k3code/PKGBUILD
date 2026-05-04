@@ -139,7 +139,7 @@ fi
 exec "$appdir/t3code" --no-sandbox "${extra_flags[@]}" "$@"
 EOF
 
-  ln -s k3code "$pkgdit3usr/bin/t3-code-desktop"
+  ln -s k3code "$pkgdit3usr/bin/k3-code-desktop"
 
   install -Dm644 "$srcdir/upstream/assets/prod/black-universal-1024.png" \
     "$pkgdir/usr/share/icons/hicolor/1024x1024/apps/k3-code-desktop.png"
