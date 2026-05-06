@@ -7,7 +7,6 @@ import * as Path from "node:path";
 import {
   app,
   BrowserWindow,
-  type BrowserWindowConstructorOptions,
   clipboard,
   dialog,
   ipcMain,
@@ -176,11 +175,6 @@ function resolvePickFolderDefaultPath(rawOptions: unknown): string | undefined {
 }
 const DESKTOP_LOOPBACK_HOST = "127.0.0.1";
 const DESKTOP_REQUIRED_PORT_PROBE_HOSTS = ["0.0.0.0", "::"] as const;
-const TITLEBAR_HEIGHT = 40;
-const TITLEBAR_COLOR = "#01000000"; // #00000000 does not work correctly on Linux
-const TITLEBAR_LIGHT_SYMBOL_COLOR = "#1f2937";
-const TITLEBAR_DARK_SYMBOL_COLOR = "#f8fafc";
-
 function normalizeContextMenuItems(source: readonly ContextMenuItem[]): ContextMenuItem[] {
   const normalizedItems: ContextMenuItem[] = [];
 
@@ -209,11 +203,6 @@ function normalizeContextMenuItems(source: readonly ContextMenuItem[]): ContextM
 
   return normalizedItems;
 }
-
-type WindowTitleBarOptions = Pick<
-  BrowserWindowConstructorOptions,
-  "titleBarOverlay" | "titleBarStyle" | "trafficLightPosition"
->;
 
 type DesktopUpdateErrorContext = DesktopUpdateState["errorContext"];
 type LinuxDesktopNamedApp = Electron.App & {
@@ -1677,9 +1666,19 @@ function registerIpcHandlers(): void {
       throw new Error("Invalid client settings payload.");
     }
 
-    clientSettings = rawSettings as ClientSettings;
-    writeClientSettings(CLIENT_SETTINGS_PATH, clientSettings);
+    const nextClientSettings = rawSettings as ClientSettings;
+    const shouldRelaunch = shouldRelaunchForClientSettingsChange(
+      clientSettings,
+      nextClientSettings,
+    );
+
+    clientSettings = nextClientSettings;
+    writeClientSettings(CLIENT_SETTINGS_PATH, nextClientSettings);
     syncAllWindowAppearance();
+
+    if (shouldRelaunch) {
+      relaunchDesktopApp("client-settings-hideWindowControls");
+    }
   });
 
   ipcMain.removeHandler(GET_SAVED_ENVIRONMENT_REGISTRY_CHANNEL);
@@ -2010,38 +2009,18 @@ function getInitialWindowBackgroundColor(): string {
   return nativeTheme.shouldUseDarkColors ? "#0a0a0a" : "#ffffff";
 }
 
-function getWindowTitleBarOptions(): WindowTitleBarOptions {
-  if (process.platform === "darwin") {
-    return {
-      titleBarStyle: "hiddenInset",
-      trafficLightPosition: { x: 16, y: 18 },
-    };
-  }
-
-  return {
-    titleBarStyle: "hidden",
-    titleBarOverlay: {
-      color: TITLEBAR_COLOR,
-      height: TITLEBAR_HEIGHT,
-      symbolColor: nativeTheme.shouldUseDarkColors
-        ? TITLEBAR_DARK_SYMBOL_COLOR
-        : TITLEBAR_LIGHT_SYMBOL_COLOR,
-    },
-  };
-}
-
 function syncWindowAppearance(window: BrowserWindow): void {
   if (window.isDestroyed()) {
     return;
   }
 
   window.setBackgroundColor(getInitialWindowBackgroundColor());
-  const { titleBarOverlay } = getWindowTitleBarOptions();
+  const { titleBarOverlay } = getWindowTitleBarOptions({
+    platform: process.platform,
+    hideWindowControls: clientSettings.hideWindowControls,
+  });
   if (typeof titleBarOverlay === "object") {
     window.setTitleBarOverlay(titleBarOverlay);
-  }
-  if (process.platform === "darwin") {
-    window.setWindowButtonVisibility(!clientSettings.hideWindowControls);
   }
 }
 
@@ -2064,7 +2043,10 @@ function createWindow(): BrowserWindow {
     backgroundColor: getInitialWindowBackgroundColor(),
     ...getIconOption(),
     title: APP_DISPLAY_NAME,
-    ...getWindowTitleBarOptions(),
+    ...getWindowTitleBarOptions({
+      platform: process.platform,
+      hideWindowControls: clientSettings.hideWindowControls,
+    }),
     webPreferences: {
       preload: Path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
