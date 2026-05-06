@@ -1,5 +1,5 @@
 pkgbase = k3code
-	pkgdesc = Desktop app built from the vendored t3code fork
+	pkgdesc = k3Code desktop app, a vendored t3code fork
 	pkgver = 0.0.22
 	pkgrel = 4
 	url = https://t3.codes
