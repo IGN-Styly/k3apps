@@ -85,10 +85,6 @@ import { isArm64HostRunningIntelBuild, resolveDesktopRuntimeInfo } from "./runti
 import { resolveDesktopAppBranding } from "./appBranding.ts";
 import { bindFirstRevealTrigger, type RevealSubscription } from "./windowReveal.ts";
 import { resolveTailscaleAdvertisedEndpoints } from "./tailscaleEndpointProvider.ts";
-import {
-  getWindowTitleBarOptions,
-  shouldRelaunchForClientSettingsChange,
-} from "./windowTitleBar.ts";
 
 syncShellEnvironment();
 
